@@ -94,6 +94,9 @@
     <p>Save this page URL to manage your subscription later.</p>
     <p style="margin-top: 20px;">
         <a href="/" class="btn btn-secondary">Back to Home</a>
+        {% if subscription.is_active %}
+        <a href="/unsubscribe/{{ unsubscribe_token }}" class="btn btn-danger" onclick="return confirm('Are you sure you want to unsubscribe from {{ subscription.region }} reports?')">Unsubscribe</a>
+        {% endif %}
     </p>
 </div>
 {% endblock %}

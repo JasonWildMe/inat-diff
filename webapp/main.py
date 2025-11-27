@@ -369,13 +369,26 @@ async def manage_subscription(
         Report.subscription_id == subscription.id
     ).order_by(Report.created_at.desc()).limit(10).all()
 
+    # Get or create unsubscribe token
+    unsub_token = db.query(Token).filter(
+        Token.subscription_id == subscription.id,
+        Token.token_type == "unsubscribe"
+    ).first()
+
+    if not unsub_token:
+        unsub_token = Token.generate(subscription.id, "unsubscribe")
+        unsub_token.expires_at = datetime.utcnow() + timedelta(days=365)
+        db.add(unsub_token)
+        db.commit()
+
     return templates.TemplateResponse(
         "manage.html",
         {
             "request": request,
             "subscription": subscription,
             "reports": reports,
-            "token": token
+            "token": token,
+            "unsubscribe_token": unsub_token.token
         }
     )
 
