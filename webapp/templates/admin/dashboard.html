@@ -68,7 +68,7 @@
                 <td>{{ sub.created_at.strftime('%Y-%m-%d') }}</td>
                 <td>
                     {% if sub.is_verified and sub.is_active %}
-                        <button onclick="generateReport({{ sub.id }})" class="btn" style="padding: 5px 10px; font-size: 12px;">Generate</button>
+                        <button onclick="generateReport({{ sub.id }})" class="btn" style="padding: 5px 10px; font-size: 12px;">Generate report</button>
                     {% elif not sub.is_verified %}
                         <button onclick="resendVerification({{ sub.id }})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">Resend</button>
                     {% endif %}
