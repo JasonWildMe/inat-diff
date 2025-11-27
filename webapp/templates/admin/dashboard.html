@@ -69,6 +69,8 @@
                 <td>
                     {% if sub.is_verified and sub.is_active %}
                         <button onclick="generateReport({{ sub.id }})" class="btn" style="padding: 5px 10px; font-size: 12px;">Generate</button>
+                    {% elif not sub.is_verified %}
+                        <button onclick="resendVerification({{ sub.id }})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">Resend</button>
                     {% endif %}
                 </td>
             </tr>
@@ -160,6 +162,18 @@ async function generateReport(subscriptionId) {
         const data = await response.json();
         alert(data.message || 'Report generation started');
         location.reload();
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function resendVerification(subscriptionId) {
+    if (!confirm('Resend verification email to this subscriber?')) return;
+
+    try {
+        const response = await fetch(`/admin/resend-verification/${subscriptionId}`, { method: 'POST' });
+        const data = await response.json();
+        alert(data.message || 'Verification email sent');
     } catch (error) {
         alert('Error: ' + error.message);
     }

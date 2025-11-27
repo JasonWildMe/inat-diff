@@ -530,6 +530,29 @@ async def generate_single_report(
     }
 
 
+@app.post("/admin/resend-verification/{subscription_id}")
+async def resend_verification(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    """Resend verification email for an unverified subscription."""
+    subscription = db.query(Subscription).filter(
+        Subscription.id == subscription_id
+    ).first()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    if subscription.is_verified:
+        return {"message": "Subscription already verified", "status": "already_verified"}
+
+    # Queue verification email
+    send_verification_email_task.delay(subscription.id)
+
+    return {"message": f"Verification email sent to {subscription.email}"}
+
+
 # =============================================================================
 # Health Check
 # =============================================================================

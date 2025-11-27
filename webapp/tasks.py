@@ -82,7 +82,7 @@ def generate_report_task(self, report_id: int):
         logger.info(f"Generating report {report_id} for {subscription.region}")
 
         # Initialize query
-        query = SpeciesQuery(rate_limit_seconds=DEFAULT_RATE_LIMIT)
+        query = SpeciesQuery()
 
         # Calculate time period
         period_days = (report.period_end - report.period_start).days
@@ -92,7 +92,8 @@ def generate_report_task(self, report_id: int):
             results = query.find_all_new_species_in_period(
                 time_period=f"last {period_days} days",
                 region=subscription.region,
-                lookback_years=subscription.lookback_years or DEFAULT_LOOKBACK_YEARS
+                lookback_years=subscription.lookback_years or DEFAULT_LOOKBACK_YEARS,
+                rate_limit=DEFAULT_RATE_LIMIT
             )
         except Exception as e:
             logger.error(f"Query failed for report {report_id}: {e}")
