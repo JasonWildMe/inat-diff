@@ -63,6 +63,7 @@ sudo -u invasives ./venv/bin/pip install -r webapp/requirements.txt
 
 echo "=== Creating directories ==="
 mkdir -p /opt/invasives/inat-diff/webapp/reports
+mkdir -p /opt/invasives/inat-diff/webapp/static
 mkdir -p /var/log/invasives
 chown -R invasives:invasives /opt/invasives
 chown -R invasives:invasives /var/log/invasives
@@ -123,13 +124,18 @@ nginx -t
 echo "=== Installation complete ==="
 echo ""
 echo "Next steps:"
-echo "1. Edit /opt/invasives/.env with your Mandrill API key"
+echo ""
+echo "1. Edit /opt/invasives/.env with your Mandrill API key:"
+echo "   nano /opt/invasives/.env"
+echo ""
 echo "2. Create an admin user:"
 echo "   cd /opt/invasives/inat-diff"
 echo "   sudo -u invasives ./venv/bin/python -m webapp.manage create-admin admin yourpassword"
-echo "3. Update nginx config with your domain"
-echo "4. Run: certbot --nginx -d invasives.wildme.org"
-echo "5. Start services:"
+echo ""
+echo "3. Set up SSL certificate:"
+echo "   certbot --nginx -d invasives.wildme.org"
+echo ""
+echo "4. Start services:"
 echo "   systemctl start redis-server"
 echo "   systemctl start invasives-web"
 echo "   systemctl start invasives-worker"
@@ -139,3 +145,7 @@ echo ""
 echo "Monitor logs with:"
 echo "   journalctl -u invasives-web -f"
 echo "   journalctl -u invasives-worker -f"
+echo ""
+echo "Using a different domain? Edit these files:"
+echo "   /etc/nginx/sites-available/invasives  (server_name)"
+echo "   /opt/invasives/.env  (BASE_URL)"
