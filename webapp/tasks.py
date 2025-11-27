@@ -183,7 +183,8 @@ def send_report_email_task(self, report_id: int):
             new_species_count=report.new_species_count,
             total_species=report.total_species,
             report_uuid=report.report_uuid,
-            unsubscribe_token=unsub_token.token
+            unsubscribe_token=unsub_token.token,
+            frequency=subscription.frequency.value
         )
 
         if success:
@@ -277,7 +278,8 @@ def send_verification_email_task(subscription_id: int):
         success = email_service.send_verification_email(
             to_email=subscription.email,
             token=token.token,
-            region=subscription.region
+            region=subscription.region,
+            frequency=subscription.frequency.value
         )
 
         if success:

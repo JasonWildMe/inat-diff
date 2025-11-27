@@ -77,7 +77,7 @@ class MandrillEmailService:
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
 
-    def send_verification_email(self, to_email: str, token: str, region: str) -> bool:
+    def send_verification_email(self, to_email: str, token: str, region: str, frequency: str = "monthly") -> bool:
         """Send email verification link to new subscriber."""
         verify_url = f"{BASE_URL}/verify/{token}"
 
@@ -111,7 +111,7 @@ class MandrillEmailService:
                 </div>
                 <div class="content">
                     <h2>Confirm Your Subscription</h2>
-                    <p>You've requested to receive monthly invasive species reports for <strong>{region}</strong>.</p>
+                    <p>You've requested to receive {frequency} invasive species reports for <strong>{region}</strong>.</p>
                     <p>Click the button below to confirm your email address and activate your subscription:</p>
                     <p style="text-align: center;">
                         <a href="{verify_url}" class="button">Confirm Subscription</a>
@@ -138,16 +138,18 @@ class MandrillEmailService:
         new_species_count: int,
         total_species: int,
         report_uuid: str,
-        unsubscribe_token: str
+        unsubscribe_token: str,
+        frequency: str = "monthly"
     ) -> bool:
         """Send the invasive species report inline in email."""
         unsubscribe_url = f"{BASE_URL}/unsubscribe/{unsubscribe_token}"
         web_report_url = f"{BASE_URL}/report/{report_uuid}"
 
+        freq_label = frequency.title()  # "Weekly" or "Monthly"
         if new_species_count > 0:
             subject = f"Alert: {new_species_count} new species detected in {region}"
         else:
-            subject = f"Monthly report: No new species in {region}"
+            subject = f"{freq_label} report: No new species in {region}"
 
         # Wrap the report HTML with email wrapper
         html_content = f"""
@@ -171,7 +173,7 @@ class MandrillEmailService:
         <body>
             <div class="email-header">
                 <h2 style="margin: 0;">iNaturalist Invasives Monitor</h2>
-                <p style="margin: 5px 0 0 0; opacity: 0.9;">Monthly Report for {region}</p>
+                <p style="margin: 5px 0 0 0; opacity: 0.9;">{freq_label} Report for {region}</p>
             </div>
 
             <div class="report-content">
