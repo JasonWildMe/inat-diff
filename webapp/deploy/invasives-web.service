@@ -1,0 +1,21 @@
+[Unit]
+Description=iNaturalist Invasives Monitor Web Application
+After=network.target redis-server.service
+
+[Service]
+Type=simple
+User=invasives
+Group=invasives
+WorkingDirectory=/opt/invasives/inat-diff
+EnvironmentFile=/opt/invasives/.env
+ExecStart=/opt/invasives/inat-diff/venv/bin/uvicorn webapp.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=invasives-web
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription Confirmed - iNaturalist Invasives Monitor{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align: center;">
+    <div class="alert alert-success">
+        <h2 style="margin-top: 0;">Subscription Confirmed!</h2>
+    </div>
+
+    <p>Your subscription for <strong>{{ subscription.place_display_name or subscription.region }}</strong> is now active.</p>
+
+    <table style="margin: 20px 0; text-align: left;">
+        <tr>
+            <th>Email</th>
+            <td>{{ subscription.email }}</td>
+        </tr>
+        <tr>
+            <th>Region</th>
+            <td>{{ subscription.place_display_name or subscription.region }}</td>
+        </tr>
+        <tr>
+            <th>Frequency</th>
+            <td>{{ subscription.frequency.value.title() }}</td>
+        </tr>
+        {% if subscription.taxon_filter %}
+        <tr>
+            <th>Taxon Filter</th>
+            <td>{{ subscription.taxon_filter }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <p>You'll receive your first report at the beginning of the next {{ subscription.frequency.value }} period.</p>
+
+    <p style="margin-top: 20px;">
+        <a href="/manage/{{ manage_token }}" class="btn">Manage Subscription</a>
+    </p>
+</div>
+{% endblock %}

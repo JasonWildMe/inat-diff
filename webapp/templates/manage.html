@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Subscription - iNaturalist Invasives Monitor{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Manage Your Subscription</h2>
+
+    <table>
+        <tr>
+            <th>Email</th>
+            <td>{{ subscription.email }}</td>
+        </tr>
+        <tr>
+            <th>Region</th>
+            <td>{{ subscription.place_display_name or subscription.region }}</td>
+        </tr>
+        <tr>
+            <th>Frequency</th>
+            <td>{{ subscription.frequency.value.title() }}</td>
+        </tr>
+        <tr>
+            <th>Status</th>
+            <td>
+                {% if subscription.is_active %}
+                    <span class="badge badge-success">Active</span>
+                {% else %}
+                    <span class="badge badge-error">Inactive</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Subscribed</th>
+            <td>{{ subscription.created_at.strftime('%Y-%m-%d') }}</td>
+        </tr>
+        {% if subscription.last_report_at %}
+        <tr>
+            <th>Last Report</th>
+            <td>{{ subscription.last_report_at.strftime('%Y-%m-%d') }}</td>
+        </tr>
+        {% endif %}
+    </table>
+</div>
+
+{% if reports %}
+<div class="card">
+    <h3>Recent Reports</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Period</th>
+                <th>Status</th>
+                <th>New Species</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in reports %}
+            <tr>
+                <td>{{ report.created_at.strftime('%Y-%m-%d') }}</td>
+                <td>{{ report.period_start.strftime('%m/%d') }} - {{ report.period_end.strftime('%m/%d') }}</td>
+                <td>
+                    {% if report.status.value == 'completed' %}
+                        <span class="badge badge-success">Completed</span>
+                    {% elif report.status.value in ['pending', 'running'] %}
+                        <span class="badge badge-pending">{{ report.status.value.title() }}</span>
+                    {% else %}
+                        <span class="badge badge-error">Failed</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if report.new_species_count is not none %}
+                        {{ report.new_species_count }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if report.status.value == 'completed' %}
+                        <a href="/report/{{ report.report_uuid }}" target="_blank">View</a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<div class="card" style="text-align: center;">
+    <p>Save this page URL to manage your subscription later.</p>
+    <p style="margin-top: 20px;">
+        <a href="/" class="btn btn-secondary">Back to Home</a>
+    </p>
+</div>
+{% endblock %}

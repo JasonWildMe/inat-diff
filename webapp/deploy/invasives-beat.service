@@ -1,0 +1,21 @@
+[Unit]
+Description=iNaturalist Invasives Monitor Celery Beat Scheduler
+After=network.target redis-server.service
+
+[Service]
+Type=simple
+User=invasives
+Group=invasives
+WorkingDirectory=/opt/invasives/inat-diff
+EnvironmentFile=/opt/invasives/.env
+ExecStart=/opt/invasives/inat-diff/venv/bin/celery -A webapp.tasks beat --loglevel=info
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=invasives-beat
+
+[Install]
+WantedBy=multi-user.target

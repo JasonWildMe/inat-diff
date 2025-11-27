@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - iNaturalist Invasives Monitor{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Admin Dashboard</h2>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 20px 0;">
+        <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 2em; font-weight: bold; color: #74ac00;">{{ stats.active_subscriptions }}</div>
+            <div style="color: #666;">Active Subscriptions</div>
+        </div>
+        <div style="background: #f3f3f3; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 2em; font-weight: bold;">{{ stats.total_subscriptions }}</div>
+            <div style="color: #666;">Total Subscriptions</div>
+        </div>
+        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 2em; font-weight: bold; color: #1976d2;">{{ stats.total_reports }}</div>
+            <div style="color: #666;">Total Reports</div>
+        </div>
+        <div style="background: #fff3e0; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 2em; font-weight: bold; color: #f57c00;">{{ stats.pending_reports }}</div>
+            <div style="color: #666;">Pending Reports</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Manual Actions</h3>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button onclick="triggerReports('monthly')" class="btn">Trigger Monthly Reports</button>
+        <button onclick="triggerReports('weekly')" class="btn btn-secondary">Trigger Weekly Reports</button>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Recent Subscriptions</h3>
+    {% if recent_subscriptions %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Email</th>
+                <th>Region</th>
+                <th>Frequency</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in recent_subscriptions %}
+            <tr>
+                <td>{{ sub.id }}</td>
+                <td>{{ sub.email }}</td>
+                <td>{{ sub.place_display_name or sub.region }}</td>
+                <td>{{ sub.frequency.value }}</td>
+                <td>
+                    {% if sub.is_verified and sub.is_active %}
+                        <span class="badge badge-success">Active</span>
+                    {% elif not sub.is_verified %}
+                        <span class="badge badge-pending">Unverified</span>
+                    {% else %}
+                        <span class="badge badge-error">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>{{ sub.created_at.strftime('%Y-%m-%d') }}</td>
+                <td>
+                    {% if sub.is_verified and sub.is_active %}
+                        <button onclick="generateReport({{ sub.id }})" class="btn" style="padding: 5px 10px; font-size: 12px;">Generate</button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No subscriptions yet.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Recent Reports</h3>
+    {% if recent_reports %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Subscription</th>
+                <th>Status</th>
+                <th>New Species</th>
+                <th>Created</th>
+                <th>Email Sent</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in recent_reports %}
+            <tr>
+                <td>{{ report.id }}</td>
+                <td>{{ report.subscription_id }}</td>
+                <td>
+                    {% if report.status.value == 'completed' %}
+                        <span class="badge badge-success">Completed</span>
+                    {% elif report.status.value in ['pending', 'running'] %}
+                        <span class="badge badge-pending">{{ report.status.value.title() }}</span>
+                    {% else %}
+                        <span class="badge badge-error">Failed</span>
+                    {% endif %}
+                </td>
+                <td>{{ report.new_species_count if report.new_species_count is not none else '-' }}</td>
+                <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    {% if report.email_sent %}
+                        <span style="color: #74ac00;">Yes</span>
+                    {% else %}
+                        <span style="color: #999;">No</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if report.status.value == 'completed' %}
+                        <a href="/report/{{ report.report_uuid }}" target="_blank">View</a>
+                    {% elif report.error_message %}
+                        <span title="{{ report.error_message }}" style="cursor: help; color: #d9534f;">Error</span>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No reports generated yet.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function triggerReports(frequency) {
+    if (!confirm(`Trigger ${frequency} reports for all active subscriptions?`)) return;
+
+    try {
+        const response = await fetch(`/admin/trigger-reports/${frequency}`, { method: 'POST' });
+        const data = await response.json();
+        alert(data.message || 'Reports triggered');
+        location.reload();
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function generateReport(subscriptionId) {
+    if (!confirm('Generate a report for this subscription now?')) return;
+
+    try {
+        const response = await fetch(`/admin/generate-report/${subscriptionId}`, { method: 'POST' });
+        const data = await response.json();
+        alert(data.message || 'Report generation started');
+        location.reload();
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

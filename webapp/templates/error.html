@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}{{ error_title }} - iNaturalist Invasives Monitor{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="alert alert-error">
+        <h3 style="margin-top: 0;">{{ error_title }}</h3>
+        <p>{{ error_message }}</p>
+    </div>
+    <p style="text-align: center;">
+        <a href="/" class="btn">Back to Home</a>
+    </p>
+</div>
+{% endblock %}

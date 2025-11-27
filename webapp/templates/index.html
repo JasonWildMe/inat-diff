@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Subscribe - iNaturalist Invasives Monitor{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Subscribe to Invasive Species Alerts</h2>
+    <p>
+        Get automated reports delivered to your inbox showing new species observations
+        in your region. Perfect for monitoring potential invasive species.
+    </p>
+
+    <form action="/subscribe" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" name="email" required
+                   placeholder="your.email@example.com">
+        </div>
+
+        <div class="form-group">
+            <label for="region">Region</label>
+            <input type="text" id="region" name="region" required
+                   placeholder="e.g., Oregon, Florida, California">
+            <p class="help-text">
+                Enter a state, country, or specific region recognized by iNaturalist.
+                Examples: "Oregon", "United States", "Multnomah County", "Yellowstone National Park"
+            </p>
+        </div>
+
+        <div class="form-group">
+            <label for="frequency">Report Frequency</label>
+            <select id="frequency" name="frequency">
+                <option value="monthly">Monthly (1st of each month)</option>
+                <option value="weekly">Weekly (every Monday)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="taxon_filter">Taxon Filter (Optional)</label>
+            <input type="text" id="taxon_filter" name="taxon_filter"
+                   placeholder="e.g., Insecta, Plantae, Reptilia">
+            <p class="help-text">
+                Leave blank to monitor all species, or enter a taxonomic group to focus your reports.
+            </p>
+        </div>
+
+        <button type="submit" class="btn">Subscribe</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3>How It Works</h3>
+    <ol>
+        <li><strong>Subscribe</strong> - Enter your email and region above</li>
+        <li><strong>Verify</strong> - Click the link in your confirmation email</li>
+        <li><strong>Receive Reports</strong> - Get automated reports showing species observed in your region that weren't seen in the previous 20 years</li>
+    </ol>
+
+    <h3>What You'll Get</h3>
+    <ul>
+        <li>List of new species observations in your region</li>
+        <li>Direct links to each observation on iNaturalist</li>
+        <li>Common and scientific names</li>
+        <li>Observation counts</li>
+    </ul>
+
+    <p>
+        <strong>Note:</strong> Reports can take 30-120 minutes to generate depending on the
+        region size, as we query 20 years of historical iNaturalist data.
+    </p>
+</div>
+{% endblock %}
