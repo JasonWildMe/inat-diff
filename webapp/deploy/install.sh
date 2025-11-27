@@ -12,11 +12,22 @@ echo "=== iNaturalist Invasives Monitor Installation ==="
 apt-get update
 apt-get upgrade -y
 
+# Detect Ubuntu version and set Python version accordingly
+UBUNTU_VERSION=$(lsb_release -rs)
+echo "Detected Ubuntu version: $UBUNTU_VERSION"
+
+if [[ "$UBUNTU_VERSION" == "24.04" ]]; then
+    PYTHON_CMD="python3"
+    PYTHON_PKG="python3 python3-venv python3-pip"
+else
+    # Ubuntu 22.04 uses Python 3.11
+    PYTHON_CMD="python3.11"
+    PYTHON_PKG="python3.11 python3.11-venv python3-pip"
+fi
+
 # Install system dependencies
 apt-get install -y \
-    python3.11 \
-    python3.11-venv \
-    python3-pip \
+    $PYTHON_PKG \
     redis-server \
     nginx \
     certbot \
@@ -41,7 +52,7 @@ fi
 cd inat-diff
 
 echo "=== Setting up Python virtual environment ==="
-sudo -u invasives python3.11 -m venv venv
+sudo -u invasives $PYTHON_CMD -m venv venv
 sudo -u invasives ./venv/bin/pip install --upgrade pip
 
 # Install the main package
@@ -57,16 +68,19 @@ chown -R invasives:invasives /opt/invasives
 chown -R invasives:invasives /var/log/invasives
 
 echo "=== Setting up environment file ==="
+# Generate a secure random secret key
+SECRET_KEY_VALUE=$(openssl rand -hex 32)
+
 if [ ! -f /opt/invasives/.env ]; then
-    cat > /opt/invasives/.env << 'EOF'
+    cat > /opt/invasives/.env << EOF
 # iNaturalist Invasives Monitor Configuration
 # Edit these values before starting the service
 
 # Required: Mandrill API key for email
 MANDRILL_API_KEY=your_mandrill_api_key_here
 
-# Required: Change this to a random string
-SECRET_KEY=change-this-to-random-string-$(openssl rand -hex 32)
+# Secret key (auto-generated)
+SECRET_KEY=$SECRET_KEY_VALUE
 
 # Domain configuration
 BASE_URL=https://invasives.wildme.org

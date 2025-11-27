@@ -298,8 +298,13 @@ python -c "from webapp.models import init_db; init_db()"
 
 - Admin dashboard uses HTTP Basic Authentication
   - Create admin users with: `python -m webapp.manage create-admin`
-  - Passwords are hashed with SHA-256
-  - Consider using stronger hashing (bcrypt) for high-security deployments
+  - Passwords are hashed with bcrypt (12 rounds)
+  - Failed login attempts are logged for security monitoring
+- CSRF protection on all forms (signed tokens, 1-hour expiry)
+- Rate limiting: 10 subscription attempts per hour per IP
+- Email validation before accepting subscriptions
+- Path traversal protection on report file serving
+- Security headers on all responses (X-Frame-Options, X-Content-Type-Options, etc.)
 - Magic links expire after 48 hours
 - Unsubscribe tokens are long-lived (1 year)
 - Database contains email addresses - secure appropriately
