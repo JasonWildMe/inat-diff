@@ -117,11 +117,12 @@ async def places_autocomplete(q: str = ""):
     client = iNatClient()
     try:
         # Search for places matching the query
+        # search_places returns a list directly, not a dict
         results = client.search_places(q)
 
         # Format results for autocomplete
         places = []
-        for place in results.get("results", [])[:10]:  # Limit to 10 results
+        for place in results[:10]:  # Limit to 10 results
             places.append({
                 "id": place.get("id"),
                 "name": place.get("name"),
