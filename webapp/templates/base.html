@@ -22,7 +22,19 @@
             background: #74ac00;
             color: white;
             padding: 20px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .header-logo {
+            height: 50px;
+            width: auto;
+        }
+
+        .header-text {
+            text-align: left;
         }
 
         .header h1 {
@@ -33,6 +45,17 @@
         .header p {
             margin: 5px 0 0 0;
             opacity: 0.9;
+        }
+
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .header-text {
+                text-align: center;
+            }
         }
 
         .container {
@@ -205,8 +228,11 @@
 </head>
 <body>
     <div class="header">
-        <h1>iNaturalist Invasives Monitor</h1>
-        <p>Leverage iNaturalist to identify new species appearing in your area.</p>
+        <img src="/static/Wild Me_white.png" alt="Wild Me" class="header-logo">
+        <div class="header-text">
+            <h1>iNaturalist Invasives Monitor</h1>
+            <p>Leverage iNaturalist to identify new species appearing in your area.</p>
+        </div>
     </div>
 
     <div class="container">
