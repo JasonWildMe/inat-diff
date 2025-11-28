@@ -42,6 +42,26 @@ class iNatClient:
         result = self._make_request(f"places/{place_id}")
         return result.get("results", [{}])[0]
 
+    def get_place_by_id(self, place_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get place information by ID, returning a consistent info dict.
+
+        Returns:
+            dict with id, name, display_name, place_type or None if not found
+        """
+        try:
+            place = self.get_place(place_id)
+            if not place or not place.get("id"):
+                return None
+            return {
+                "id": place.get("id"),
+                "name": place.get("name"),
+                "display_name": place.get("display_name"),
+                "place_type": place.get("place_type"),
+            }
+        except Exception:
+            return None
+
     def search_taxa(self, query: str, rank: Optional[str] = None) -> List[Dict[str, Any]]:
         """Search for taxa by name."""
         params = {"q": query}

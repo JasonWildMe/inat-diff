@@ -105,6 +105,37 @@ async def startup_event():
 # Public Routes
 # =============================================================================
 
+@app.get("/api/places/autocomplete")
+async def places_autocomplete(q: str = ""):
+    """
+    Autocomplete endpoint for iNaturalist places.
+    Returns matching places for the search query.
+    """
+    if len(q) < 2:
+        return {"results": []}
+
+    client = iNatClient()
+    try:
+        # Search for places matching the query
+        results = client.search_places(q)
+
+        # Format results for autocomplete
+        places = []
+        for place in results.get("results", [])[:10]:  # Limit to 10 results
+            places.append({
+                "id": place.get("id"),
+                "name": place.get("name"),
+                "display_name": place.get("display_name", place.get("name")),
+                "place_type": place.get("place_type_name", ""),
+                "bbox": place.get("bounding_box_geojson")
+            })
+
+        return {"results": places}
+    except Exception as e:
+        logger.error(f"Place autocomplete error: {e}")
+        return {"results": [], "error": str(e)}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Home page with subscription form."""
@@ -123,6 +154,7 @@ async def create_subscription(
     region: str = Form(...),
     frequency: str = Form("monthly"),
     taxon_filter: Optional[str] = Form(None),
+    place_id: Optional[str] = Form(None),
     csrf_token: str = Form(...),
     db: Session = Depends(get_db)
 ):
@@ -168,18 +200,35 @@ async def create_subscription(
 
     # Validate region by resolving with iNaturalist
     client = iNatClient()
-    try:
-        place_id, place_info = client.resolve_place_with_info(region)
-    except Exception as e:
-        return templates.TemplateResponse(
-            "error.html",
-            {
-                "request": request,
-                "error_title": "Invalid Region",
-                "error_message": "Could not find this region in iNaturalist. Please try a different region name (e.g., 'Oregon', 'Florida', 'California')."
-            },
-            status_code=400
-        )
+    resolved_place_id = None
+    place_info = {}
+
+    # If place_id provided from autocomplete, use it directly
+    if place_id and place_id.strip():
+        try:
+            resolved_place_id = int(place_id.strip())
+            # Fetch place info to verify it exists
+            place_info = client.get_place_by_id(resolved_place_id)
+            if not place_info:
+                raise ValueError("Place not found")
+        except (ValueError, Exception) as e:
+            # Fall back to text search if place_id is invalid
+            resolved_place_id = None
+
+    # Fall back to text search if no valid place_id
+    if not resolved_place_id:
+        try:
+            resolved_place_id, place_info = client.resolve_place_with_info(region)
+        except Exception as e:
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "error_title": "Invalid Region",
+                    "error_message": "Could not find this region in iNaturalist. Please try a different region name (e.g., 'Oregon', 'Florida', 'California')."
+                },
+                status_code=400
+            )
 
     # Check for existing subscription
     existing = db.query(Subscription).filter(
@@ -216,7 +265,7 @@ async def create_subscription(
     subscription = Subscription(
         email=email.lower().strip(),
         region=region.strip(),
-        place_id=place_id,
+        place_id=resolved_place_id,
         place_name=place_info.get('name'),
         place_display_name=place_info.get('display_name'),
         frequency=freq_enum,

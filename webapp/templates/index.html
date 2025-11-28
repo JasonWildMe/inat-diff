@@ -2,6 +2,103 @@
 
 {% block title %}Subscribe - iNaturalist Invasives Monitor{% endblock %}
 
+{% block extra_css %}
+<style>
+    .autocomplete-wrapper {
+        position: relative;
+    }
+
+    .autocomplete-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        display: none;
+    }
+
+    .autocomplete-results.show {
+        display: block;
+    }
+
+    .autocomplete-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+    }
+
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+        background: #f0f7e6;
+    }
+
+    .autocomplete-item-name {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .autocomplete-item-type {
+        font-size: 0.85em;
+        color: #666;
+        margin-left: 8px;
+    }
+
+    .autocomplete-item-display {
+        font-size: 0.85em;
+        color: #888;
+        margin-top: 2px;
+    }
+
+    .selected-place {
+        background: #e8f5e9;
+        border: 1px solid #74ac00;
+        border-radius: 4px;
+        padding: 8px 12px;
+        margin-top: 8px;
+        display: none;
+    }
+
+    .selected-place.show {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .selected-place-name {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .selected-place-clear {
+        background: none;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        font-size: 1.2em;
+        padding: 0 5px;
+    }
+
+    .selected-place-clear:hover {
+        color: #d9534f;
+    }
+
+    #region-input.has-selection {
+        display: none;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="card">
     <h2>Subscribe to Invasive Species Alerts</h2>
@@ -11,8 +108,9 @@
         monitor for potential invasive species.
     </p>
 
-    <form action="/subscribe" method="post">
+    <form action="/subscribe" method="post" id="subscribe-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="place_id" id="place_id" value="">
         <div class="form-group">
             <label for="email">Email Address</label>
             <input type="email" id="email" name="email" required
@@ -20,12 +118,19 @@
         </div>
 
         <div class="form-group">
-            <label for="region">Region</label>
-            <input type="text" id="region" name="region" required
-                   placeholder="e.g., Oregon, Florida, California">
+            <label for="region-input">Region</label>
+            <div class="autocomplete-wrapper">
+                <input type="text" id="region-input" name="region"
+                       placeholder="Start typing to search iNaturalist places..."
+                       autocomplete="off">
+                <div class="autocomplete-results" id="autocomplete-results"></div>
+            </div>
+            <div class="selected-place" id="selected-place">
+                <span class="selected-place-name" id="selected-place-name"></span>
+                <button type="button" class="selected-place-clear" id="clear-selection" title="Clear selection">&times;</button>
+            </div>
             <p class="help-text">
-                Enter a state, country, or specific region recognized by iNaturalist.
-                Examples: "Oregon", "United States", "Multnomah County", "Yellowstone National Park"
+                Search for a state, country, county, or park. Select from the dropdown to ensure an exact match.
             </p>
         </div>
 
@@ -71,4 +176,181 @@
         region size, as we query 20 years of historical iNaturalist data.
     </p>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const regionInput = document.getElementById('region-input');
+    const autocompleteResults = document.getElementById('autocomplete-results');
+    const selectedPlace = document.getElementById('selected-place');
+    const selectedPlaceName = document.getElementById('selected-place-name');
+    const clearSelection = document.getElementById('clear-selection');
+    const placeIdInput = document.getElementById('place_id');
+    const form = document.getElementById('subscribe-form');
+
+    let debounceTimer;
+    let selectedIndex = -1;
+    let currentResults = [];
+
+    // Debounced search function
+    function searchPlaces(query) {
+        if (query.length < 2) {
+            hideResults();
+            return;
+        }
+
+        fetch(`/api/places/autocomplete?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                currentResults = data.results || [];
+                displayResults(currentResults);
+            })
+            .catch(error => {
+                console.error('Autocomplete error:', error);
+                hideResults();
+            });
+    }
+
+    // Display autocomplete results
+    function displayResults(results) {
+        if (results.length === 0) {
+            hideResults();
+            return;
+        }
+
+        autocompleteResults.innerHTML = results.map((place, index) => `
+            <div class="autocomplete-item" data-index="${index}">
+                <div>
+                    <span class="autocomplete-item-name">${escapeHtml(place.name)}</span>
+                    <span class="autocomplete-item-type">${escapeHtml(place.place_type || '')}</span>
+                </div>
+                ${place.display_name && place.display_name !== place.name ?
+                    `<div class="autocomplete-item-display">${escapeHtml(place.display_name)}</div>` : ''}
+            </div>
+        `).join('');
+
+        autocompleteResults.classList.add('show');
+        selectedIndex = -1;
+    }
+
+    // Hide results dropdown
+    function hideResults() {
+        autocompleteResults.classList.remove('show');
+        autocompleteResults.innerHTML = '';
+        currentResults = [];
+        selectedIndex = -1;
+    }
+
+    // Select a place from results
+    function selectPlace(place) {
+        placeIdInput.value = place.id;
+        regionInput.value = place.name;
+        regionInput.classList.add('has-selection');
+
+        const displayText = place.display_name && place.display_name !== place.name
+            ? `${place.name} (${place.display_name})`
+            : place.name;
+        selectedPlaceName.textContent = displayText;
+        selectedPlace.classList.add('show');
+
+        hideResults();
+    }
+
+    // Clear selection
+    function clearPlaceSelection() {
+        placeIdInput.value = '';
+        regionInput.value = '';
+        regionInput.classList.remove('has-selection');
+        selectedPlace.classList.remove('show');
+        selectedPlaceName.textContent = '';
+        regionInput.focus();
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Input event handler with debounce
+    regionInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const query = this.value.trim();
+
+        // If user is typing after a selection, clear the selection
+        if (placeIdInput.value) {
+            placeIdInput.value = '';
+            regionInput.classList.remove('has-selection');
+            selectedPlace.classList.remove('show');
+        }
+
+        debounceTimer = setTimeout(() => searchPlaces(query), 300);
+    });
+
+    // Keyboard navigation
+    regionInput.addEventListener('keydown', function(e) {
+        const items = autocompleteResults.querySelectorAll('.autocomplete-item');
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+            updateSelection(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, 0);
+            updateSelection(items);
+        } else if (e.key === 'Enter' && selectedIndex >= 0) {
+            e.preventDefault();
+            if (currentResults[selectedIndex]) {
+                selectPlace(currentResults[selectedIndex]);
+            }
+        } else if (e.key === 'Escape') {
+            hideResults();
+        }
+    });
+
+    // Update visual selection
+    function updateSelection(items) {
+        items.forEach((item, index) => {
+            item.classList.toggle('selected', index === selectedIndex);
+        });
+        if (items[selectedIndex]) {
+            items[selectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    // Click handler for autocomplete items
+    autocompleteResults.addEventListener('click', function(e) {
+        const item = e.target.closest('.autocomplete-item');
+        if (item) {
+            const index = parseInt(item.dataset.index);
+            if (currentResults[index]) {
+                selectPlace(currentResults[index]);
+            }
+        }
+    });
+
+    // Clear selection button
+    clearSelection.addEventListener('click', clearPlaceSelection);
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!regionInput.contains(e.target) && !autocompleteResults.contains(e.target)) {
+            hideResults();
+        }
+    });
+
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        if (!placeIdInput.value && !regionInput.value.trim()) {
+            e.preventDefault();
+            alert('Please select a region from the dropdown or enter a region name.');
+            regionInput.focus();
+        }
+    });
+});
+</script>
 {% endblock %}
