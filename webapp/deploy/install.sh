@@ -93,6 +93,11 @@ DATABASE_URL=sqlite:////opt/invasives/inat-diff/webapp/invasives.db
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
+
+# Prosopo Procaptcha (bot protection)
+# Get keys from https://portal.prosopo.io/
+PROCAPTCHA_SITEKEY=your_procaptcha_sitekey_here
+PROCAPTCHA_SECRET=your_procaptcha_secret_here
 EOF
     chown invasives:invasives /opt/invasives/.env
     chmod 600 /opt/invasives/.env

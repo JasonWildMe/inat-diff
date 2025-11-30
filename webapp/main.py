@@ -664,6 +664,35 @@ async def resend_verification(
     return {"message": f"Verification email sent to {subscription.email}"}
 
 
+@app.post("/admin/delete-subscription/{subscription_id}")
+async def delete_subscription(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    """Delete a subscription (requires authentication)."""
+    subscription = db.query(Subscription).filter(
+        Subscription.id == subscription_id
+    ).first()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    email = subscription.email
+    region = subscription.region
+
+    # Delete associated tokens
+    db.query(Token).filter(Token.subscription_id == subscription_id).delete()
+
+    # Delete the subscription
+    db.delete(subscription)
+    db.commit()
+
+    logger.info(f"Admin deleted subscription {subscription_id}: {email} for {region}")
+
+    return {"message": f"Subscription for {email} ({region}) deleted"}
+
+
 # =============================================================================
 # Health Check
 # =============================================================================

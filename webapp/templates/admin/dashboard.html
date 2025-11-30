@@ -72,6 +72,7 @@
                     {% elif not sub.is_verified %}
                         <button onclick="resendVerification({{ sub.id }})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">Resend</button>
                     {% endif %}
+                    <button onclick="deleteSubscription({{ sub.id }}, '{{ sub.email }}')" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Delete</button>
                 </td>
             </tr>
             {% endfor %}
@@ -174,6 +175,19 @@ async function resendVerification(subscriptionId) {
         const response = await fetch(`/admin/resend-verification/${subscriptionId}`, { method: 'POST' });
         const data = await response.json();
         alert(data.message || 'Verification email sent');
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function deleteSubscription(subscriptionId, email) {
+    if (!confirm(`Delete subscription for ${email}? This cannot be undone.`)) return;
+
+    try {
+        const response = await fetch(`/admin/delete-subscription/${subscriptionId}`, { method: 'POST' });
+        const data = await response.json();
+        alert(data.message || 'Subscription deleted');
+        location.reload();
     } catch (error) {
         alert('Error: ' + error.message);
     }
