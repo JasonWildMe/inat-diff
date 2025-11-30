@@ -157,6 +157,7 @@ async def verify_procaptcha(token: str) -> bool:
         return True
 
     if not token:
+        logger.warning("Procaptcha token is empty")
         return False
 
     try:
@@ -171,7 +172,9 @@ async def verify_procaptcha(token: str) -> bool:
                 timeout=10.0
             )
             result = response.json()
-            return result.get("verified", False)
+            verified = result.get("verified", False)
+            logger.info(f"Procaptcha verification result: {result}")
+            return verified
     except Exception as e:
         logger.error(f"Procaptcha verification error: {e}")
         return False
