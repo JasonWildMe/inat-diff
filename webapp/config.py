@@ -23,6 +23,10 @@ FROM_NAME = os.getenv("FROM_NAME", "iNaturalist Invasives Monitor")
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-in-production-to-random-string")
 BASE_URL = os.getenv("BASE_URL", "https://invasives.wildme.org")
 
+# Prosopo Procaptcha (bot protection)
+PROCAPTCHA_SITEKEY = os.getenv("PROCAPTCHA_SITEKEY", "")
+PROCAPTCHA_SECRET = os.getenv("PROCAPTCHA_SECRET", "")
+
 # Report generation settings
 DEFAULT_LOOKBACK_YEARS = 20
 DEFAULT_RATE_LIMIT = 1.2  # seconds between iNaturalist API calls

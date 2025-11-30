@@ -11,8 +11,9 @@ sqlalchemy>=2.0.0
 celery[redis]>=5.3.0
 redis>=4.5.0
 
-# HTTP Client (for Mandrill)
+# HTTP Client (for Mandrill and Procaptcha)
 requests>=2.28.0
+httpx>=0.24.0
 
 # Security
 bcrypt>=4.0.0

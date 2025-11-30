@@ -17,7 +17,8 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from email_validator import validate_email, EmailNotValidError
 
-from webapp.config import BASE_URL, REPORT_STORAGE_DIR
+import httpx
+from webapp.config import BASE_URL, REPORT_STORAGE_DIR, PROCAPTCHA_SITEKEY, PROCAPTCHA_SECRET
 from webapp.models import (
     init_db, get_db, Subscription, Report, Token,
     Frequency, ReportStatus
@@ -143,8 +144,37 @@ async def home(request: Request):
     csrf_token = generate_csrf_token()
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "csrf_token": csrf_token
+        "csrf_token": csrf_token,
+        "procaptcha_sitekey": PROCAPTCHA_SITEKEY
     })
+
+
+async def verify_procaptcha(token: str) -> bool:
+    """Verify Procaptcha token with Prosopo API."""
+    if not PROCAPTCHA_SECRET:
+        # If no secret configured, skip verification (for development)
+        logger.warning("PROCAPTCHA_SECRET not configured, skipping captcha verification")
+        return True
+
+    if not token:
+        return False
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.prosopo.io/siteverify",
+                json={
+                    "secret": PROCAPTCHA_SECRET,
+                    "token": token
+                },
+                headers={"Content-Type": "application/json"},
+                timeout=10.0
+            )
+            result = response.json()
+            return result.get("verified", False)
+    except Exception as e:
+        logger.error(f"Procaptcha verification error: {e}")
+        return False
 
 
 @app.post("/subscribe")
@@ -160,6 +190,24 @@ async def create_subscription(
     db: Session = Depends(get_db)
 ):
     """Create a new subscription (requires email verification)."""
+    # Get procaptcha response from form data
+    form_data = await request.form()
+    procaptcha_response = form_data.get("procaptcha-response", "")
+
+    # Verify captcha first
+    if PROCAPTCHA_SECRET:
+        captcha_valid = await verify_procaptcha(procaptcha_response)
+        if not captcha_valid:
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "error_title": "Verification Failed",
+                    "error_message": "Please complete the human verification challenge and try again."
+                },
+                status_code=400
+            )
+
     # Validate CSRF token
     if not validate_csrf_token(csrf_token):
         return templates.TemplateResponse(
