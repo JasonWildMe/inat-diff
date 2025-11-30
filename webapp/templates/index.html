@@ -111,7 +111,6 @@
     <form action="/subscribe" method="post" id="subscribe-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="place_id" id="place_id" value="">
-        <input type="hidden" name="procaptcha-response" id="procaptcha-response" value="">
         <div class="form-group">
             <label for="email">Email Address</label>
             <input type="email" id="email" name="email" required
@@ -152,11 +151,14 @@
             </p>
         </div>
 
-        <div class="form-group" id="captcha-group" style="display: none;">
-            <div id="procaptcha-container"></div>
+        {% if procaptcha_sitekey %}
+        <div class="form-group">
+            <div class="procaptcha" data-sitekey="{{ procaptcha_sitekey }}" data-captcha-type="frictionless"></div>
+            <script type="module" src="https://js.prosopo.io/js/procaptcha.bundle.js" async></script>
         </div>
+        {% endif %}
 
-        <button type="submit" class="btn" id="submit-btn">Subscribe</button>
+        <button type="submit" class="btn">Subscribe</button>
     </form>
 </div>
 
@@ -357,40 +359,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Procaptcha setup
-    const siteKey = '{{ procaptcha_sitekey }}';
-    const procaptchaInput = document.getElementById('procaptcha-response');
-
-    if (siteKey) {
-        // Show captcha container
-        document.getElementById('captcha-group').style.display = 'block';
-
-        // Wait for procaptcha script to load
-        function initProcaptcha() {
-            if (window.procaptcha) {
-                window.procaptcha.render('procaptcha-container', {
-                    siteKey: siteKey,
-                    captchaType: 'frictionless',
-                    callback: function(output) {
-                        // output contains the token from frictionless verification
-                        console.log('Procaptcha completed:', output);
-                        if (output && output.token) {
-                            procaptchaInput.value = output.token;
-                        } else if (typeof output === 'string') {
-                            procaptchaInput.value = output;
-                        }
-                    },
-                    onError: function(error) {
-                        console.error('Procaptcha error:', error);
-                    }
-                });
-            } else {
-                // Script not loaded yet, retry
-                setTimeout(initProcaptcha, 100);
-            }
-        }
-        initProcaptcha();
-    }
 });
 </script>
 {% endblock %}
