@@ -270,10 +270,10 @@ class SpeciesQuery:
                             break
 
                         for taxon in results:
-                            taxon_id = taxon.get("taxon", {}).get("id")
-                            if taxon_id:
-                                species_map[taxon_id] = {
-                                    "id": taxon_id,
+                            species_taxon_id = taxon.get("taxon", {}).get("id")
+                            if species_taxon_id:
+                                species_map[species_taxon_id] = {
+                                    "id": species_taxon_id,
                                     "name": taxon.get("taxon", {}).get("name"),
                                     "preferred_common_name": taxon.get("taxon", {}).get("preferred_common_name"),
                                     "rank": taxon.get("taxon", {}).get("rank"),
