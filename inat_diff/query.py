@@ -198,6 +198,7 @@ class SpeciesQuery:
                                        lookback_years: int = 20,
                                        rate_limit: float = 1.2,  # iNaturalist API limit: 60-100 req/min (https://www.inaturalist.org/pages/api+recommended+practices)
                                                                  # 1.2 seconds = 50 req/min, conservative to avoid throttling
+                                       taxon_id: Optional[int] = None,
                                        verbose: bool = False) -> Dict[str, Any]:
         """
         Find all species that appear to be new to a region during a time period.
@@ -213,6 +214,7 @@ class SpeciesQuery:
             region: Name of the region
             lookback_years: How many years to look back for historical data
             rate_limit: Seconds to wait between API calls (default: 1.2 = 50 req/min)
+            taxon_id: Optional iNaturalist taxon ID to filter results
             verbose: Print progress information
 
         Returns:
@@ -254,6 +256,7 @@ class SpeciesQuery:
                     try:
                         counts = self.client.get_species_counts(
                             place_id=place_id,
+                            taxon_id=taxon_id,
                             d1=period_start,
                             d2=period_end,
                             per_page=500,

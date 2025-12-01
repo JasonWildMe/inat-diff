@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 import time
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
@@ -237,8 +238,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
     {content}
     <div class="footer">
-        <p>Generated from iNaturalist data using <a href="https://github.com/yourusername/inat-diff">inat-diff</a></p>
-        <p>Data from <a href="https://www.inaturalist.org">iNaturalist.org</a></p>
+        <p>
+            Data from <a href="https://www.inaturalist.org">iNaturalist</a> |
+            <a href="https://conservationxlabs.com">Wild Me by Conservation X Labs</a>
+        </p>
+        <p>
+            <a href="https://invasives.wildme.org/static/CXL-Terms-of-Use-20250514.pdf">Terms of Use</a> |
+            <a href="https://invasives.wildme.org/static/CXL-Privacy-Policy-20250514.pdf">Privacy Policy</a>
+        </p>
+        <p>&copy; {current_year} Conservation X Labs</p>
     </div>
 </body>
 </html>
@@ -510,7 +518,7 @@ def generate_new_species_html(data: Dict[str, Any], include_quality: bool = Fals
         """
 
     content = header + summary + new_species_html
-    return HTML_TEMPLATE.format(title=title, content=content)
+    return HTML_TEMPLATE.format(title=title, content=content, current_year=datetime.now().year)
 
 
 def generate_list_species_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2) -> str:
@@ -579,7 +587,7 @@ def generate_list_species_html(data: Dict[str, Any], include_quality: bool = Fal
         """
 
     content = header + summary + species_html
-    return HTML_TEMPLATE.format(title=title, content=content)
+    return HTML_TEMPLATE.format(title=title, content=content, current_year=datetime.now().year)
 
 
 def generate_query_html(data: Dict[str, Any]) -> str:
@@ -638,7 +646,7 @@ def generate_query_html(data: Dict[str, Any]) -> str:
     """
 
     content = header + summary + link_section
-    return HTML_TEMPLATE.format(title=title, content=content)
+    return HTML_TEMPLATE.format(title=title, content=content, current_year=datetime.now().year)
 
 
 def generate_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2) -> str:

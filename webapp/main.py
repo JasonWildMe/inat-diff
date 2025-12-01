@@ -138,6 +138,37 @@ async def places_autocomplete(q: str = ""):
         return {"results": [], "error": str(e)}
 
 
+@app.get("/api/taxa/autocomplete")
+async def taxa_autocomplete(q: str = ""):
+    """
+    Autocomplete endpoint for iNaturalist taxa.
+    Returns matching taxa for the search query.
+    """
+    if len(q) < 2:
+        return {"results": []}
+
+    client = iNatClient()
+    try:
+        # Search for taxa matching the query
+        results = client.search_taxa(q)
+
+        # Format results for autocomplete
+        taxa = []
+        for taxon in results[:10]:  # Limit to 10 results
+            taxa.append({
+                "id": taxon.get("id"),
+                "name": taxon.get("name"),
+                "common_name": taxon.get("preferred_common_name", ""),
+                "rank": taxon.get("rank", "").capitalize(),
+                "iconic_taxon": taxon.get("iconic_taxon_name", ""),
+            })
+
+        return {"results": taxa}
+    except Exception as e:
+        logger.error(f"Taxa autocomplete error: {e}")
+        return {"results": [], "error": str(e)}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Home page with subscription form."""
@@ -188,6 +219,7 @@ async def create_subscription(
     region: str = Form(...),
     frequency: str = Form("monthly"),
     taxon_filter: Optional[str] = Form(None),
+    taxon_id: Optional[str] = Form(None),
     place_id: Optional[str] = Form(None),
     csrf_token: str = Form(...),
     db: Session = Depends(get_db)
@@ -314,6 +346,14 @@ async def create_subscription(
     # Create new subscription
     freq_enum = Frequency.WEEKLY if frequency == "weekly" else Frequency.MONTHLY
 
+    # Resolve taxon_id if provided
+    resolved_taxon_id = None
+    if taxon_id and taxon_id.strip():
+        try:
+            resolved_taxon_id = int(taxon_id.strip())
+        except ValueError:
+            resolved_taxon_id = None
+
     subscription = Subscription(
         email=email.lower().strip(),
         region=region.strip(),
@@ -322,6 +362,7 @@ async def create_subscription(
         place_display_name=place_info.get('display_name'),
         frequency=freq_enum,
         taxon_filter=taxon_filter.strip() if taxon_filter else None,
+        taxon_id=resolved_taxon_id,
         is_verified=False,
         is_active=True
     )

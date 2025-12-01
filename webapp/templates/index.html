@@ -143,11 +143,20 @@
         </div>
 
         <div class="form-group">
-            <label for="taxon_filter">Taxon Filter (Optional)</label>
-            <input type="text" id="taxon_filter" name="taxon_filter"
-                   placeholder="e.g., Insecta, Plantae, Reptilia">
+            <label for="taxon-input">Taxon Filter (Optional)</label>
+            <input type="hidden" name="taxon_id" id="taxon_id" value="">
+            <div class="autocomplete-wrapper">
+                <input type="text" id="taxon-input" name="taxon_filter"
+                       placeholder="Start typing to search taxa (e.g., Insecta, Plantae)..."
+                       autocomplete="off">
+                <div class="autocomplete-results" id="taxon-autocomplete-results"></div>
+            </div>
+            <div class="selected-item" id="selected-taxon">
+                <span id="selected-taxon-name"></span>
+                <button type="button" class="clear-selection" id="clear-taxon-selection">&times;</button>
+            </div>
             <p class="help-text">
-                Leave blank to monitor all species, or enter a taxonomic group to focus your reports.
+                Leave blank to monitor all species, or select a taxonomic group to focus your reports.
             </p>
         </div>
 
@@ -356,6 +365,163 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             alert('Please select a region from the dropdown or enter a region name.');
             regionInput.focus();
+        }
+    });
+
+    // =========================================================================
+    // Taxon Autocomplete
+    // =========================================================================
+    const taxonInput = document.getElementById('taxon-input');
+    const taxonAutocompleteResults = document.getElementById('taxon-autocomplete-results');
+    const selectedTaxon = document.getElementById('selected-taxon');
+    const selectedTaxonName = document.getElementById('selected-taxon-name');
+    const clearTaxonSelection = document.getElementById('clear-taxon-selection');
+    const taxonIdInput = document.getElementById('taxon_id');
+
+    let taxonDebounceTimer;
+    let taxonSelectedIndex = -1;
+    let taxonCurrentResults = [];
+
+    // Debounced search function for taxa
+    function searchTaxa(query) {
+        if (query.length < 2) {
+            hideTaxonResults();
+            return;
+        }
+
+        fetch(`/api/taxa/autocomplete?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                taxonCurrentResults = data.results || [];
+                displayTaxonResults(taxonCurrentResults);
+            })
+            .catch(error => {
+                console.error('Taxon autocomplete error:', error);
+                hideTaxonResults();
+            });
+    }
+
+    // Display taxon autocomplete results
+    function displayTaxonResults(results) {
+        if (results.length === 0) {
+            hideTaxonResults();
+            return;
+        }
+
+        taxonAutocompleteResults.innerHTML = results.map((taxon, index) => `
+            <div class="autocomplete-item" data-index="${index}">
+                <div>
+                    <span class="autocomplete-item-name">${escapeHtml(taxon.common_name || taxon.name)}</span>
+                    <span class="autocomplete-item-type">${escapeHtml(taxon.rank || '')}</span>
+                </div>
+                ${taxon.common_name ?
+                    `<div class="autocomplete-item-display"><em>${escapeHtml(taxon.name)}</em> · ${escapeHtml(taxon.iconic_taxon || '')}</div>` :
+                    `<div class="autocomplete-item-display">${escapeHtml(taxon.iconic_taxon || '')}</div>`}
+            </div>
+        `).join('');
+
+        taxonAutocompleteResults.classList.add('show');
+        taxonSelectedIndex = -1;
+    }
+
+    // Hide taxon results dropdown
+    function hideTaxonResults() {
+        taxonAutocompleteResults.classList.remove('show');
+        taxonAutocompleteResults.innerHTML = '';
+        taxonCurrentResults = [];
+        taxonSelectedIndex = -1;
+    }
+
+    // Select a taxon from results
+    function selectTaxon(taxon) {
+        taxonIdInput.value = taxon.id;
+        taxonInput.value = taxon.common_name || taxon.name;
+        taxonInput.classList.add('has-selection');
+
+        const displayText = taxon.common_name
+            ? `${taxon.common_name} (${taxon.name})`
+            : taxon.name;
+        selectedTaxonName.textContent = displayText;
+        selectedTaxon.classList.add('show');
+
+        hideTaxonResults();
+    }
+
+    // Clear taxon selection
+    function clearTaxonSelectionFn() {
+        taxonIdInput.value = '';
+        taxonInput.value = '';
+        taxonInput.classList.remove('has-selection');
+        selectedTaxon.classList.remove('show');
+        selectedTaxonName.textContent = '';
+        taxonInput.focus();
+    }
+
+    // Input event handler with debounce for taxon
+    taxonInput.addEventListener('input', function() {
+        clearTimeout(taxonDebounceTimer);
+        const query = this.value.trim();
+
+        // If user is typing after a selection, clear the selection
+        if (taxonIdInput.value) {
+            taxonIdInput.value = '';
+            taxonInput.classList.remove('has-selection');
+            selectedTaxon.classList.remove('show');
+        }
+
+        taxonDebounceTimer = setTimeout(() => searchTaxa(query), 300);
+    });
+
+    // Keyboard navigation for taxon
+    taxonInput.addEventListener('keydown', function(e) {
+        const items = taxonAutocompleteResults.querySelectorAll('.autocomplete-item');
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            taxonSelectedIndex = Math.min(taxonSelectedIndex + 1, items.length - 1);
+            updateTaxonSelection(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            taxonSelectedIndex = Math.max(taxonSelectedIndex - 1, 0);
+            updateTaxonSelection(items);
+        } else if (e.key === 'Enter' && taxonSelectedIndex >= 0) {
+            e.preventDefault();
+            if (taxonCurrentResults[taxonSelectedIndex]) {
+                selectTaxon(taxonCurrentResults[taxonSelectedIndex]);
+            }
+        } else if (e.key === 'Escape') {
+            hideTaxonResults();
+        }
+    });
+
+    // Update visual selection for taxon
+    function updateTaxonSelection(items) {
+        items.forEach((item, index) => {
+            item.classList.toggle('selected', index === taxonSelectedIndex);
+        });
+        if (items[taxonSelectedIndex]) {
+            items[taxonSelectedIndex].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    // Click handler for taxon autocomplete items
+    taxonAutocompleteResults.addEventListener('click', function(e) {
+        const item = e.target.closest('.autocomplete-item');
+        if (item) {
+            const index = parseInt(item.dataset.index);
+            if (taxonCurrentResults[index]) {
+                selectTaxon(taxonCurrentResults[index]);
+            }
+        }
+    });
+
+    // Clear taxon selection button
+    clearTaxonSelection.addEventListener('click', clearTaxonSelectionFn);
+
+    // Close taxon dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!taxonInput.contains(e.target) && !taxonAutocompleteResults.contains(e.target)) {
+            hideTaxonResults();
         }
     });
 
