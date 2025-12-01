@@ -108,11 +108,11 @@ def generate_report_task(self, report_id: int):
         with open(json_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
 
-        # Generate HTML report
+        # Generate HTML report with quality grades
         html_filename = f"{report.report_uuid}.html"
         html_path = REPORT_STORAGE_DIR / html_filename
 
-        report_html = generate_html(results)
+        report_html = generate_html(results, include_quality=True, rate_limit=DEFAULT_RATE_LIMIT)
         with open(html_path, 'w') as f:
             f.write(report_html)
 

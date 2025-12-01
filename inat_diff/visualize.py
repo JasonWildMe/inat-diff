@@ -92,50 +92,73 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             margin-top: 0;
             color: #333;
         }}
-        .species-list {{
-            list-style: none;
-            padding: 0;
-            margin: 0;
+        .species-table {{
+            width: 100%;
+            border-collapse: collapse;
         }}
-        .species-item {{
-            padding: 15px;
+        .species-table th {{
+            text-align: left;
+            padding: 12px 15px;
+            background-color: #f8f8f8;
+            border-bottom: 2px solid #ddd;
+            font-weight: 600;
+            color: #555;
+        }}
+        .species-table th.col-obs,
+        .species-table th.col-quality,
+        .species-table th.col-action {{
+            text-align: center;
+        }}
+        .species-table td {{
+            padding: 12px 15px;
             border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            vertical-align: middle;
         }}
-        .species-item:last-child {{
-            border-bottom: none;
-        }}
-        .species-item:hover {{
+        .species-table tr:hover {{
             background-color: #f8f8f8;
         }}
-        .species-info {{
-            flex: 1;
+        .species-table tr:last-child td {{
+            border-bottom: none;
+        }}
+        .col-name {{
+            width: 45%;
+        }}
+        .col-obs {{
+            width: 12%;
+            text-align: center;
+        }}
+        .col-quality {{
+            width: 18%;
+            text-align: center;
+        }}
+        .col-action {{
+            width: 25%;
+            text-align: center;
         }}
         .species-name {{
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #333;
         }}
         .species-name-latin {{
             font-style: italic;
             color: #666;
-            font-size: 14px;
-            margin-left: 8px;
+            font-size: 13px;
+            display: block;
+            margin-top: 2px;
         }}
         .species-meta {{
-            font-size: 13px;
+            font-size: 12px;
             color: #888;
-            margin-top: 4px;
+            margin-top: 6px;
         }}
         .species-badge {{
             display: inline-block;
             padding: 2px 8px;
             border-radius: 3px;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
-            margin-right: 6px;
+            margin-right: 4px;
             text-transform: uppercase;
         }}
         .badge-new {{
@@ -150,38 +173,47 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background-color: #d4edda;
             color: #155724;
         }}
-        .species-stats {{
-            text-align: right;
-            margin-left: 20px;
-        }}
         .obs-count {{
             font-size: 18px;
             font-weight: bold;
             color: #74ac00;
         }}
         .obs-label {{
-            font-size: 12px;
+            font-size: 11px;
             color: #888;
+            display: block;
         }}
-        .historical-count {{
-            font-size: 13px;
+        .quality-badge {{
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        .quality-research {{
+            background-color: #d4edda;
+            color: #155724;
+        }}
+        .quality-needs-id {{
+            background-color: #fff3cd;
+            color: #856404;
+        }}
+        .quality-casual {{
+            background-color: #e8e8e8;
             color: #666;
-            margin-top: 4px;
         }}
-        .quality-grade {{
-            font-size: 12px;
-            color: #555;
-            margin-top: 6px;
+        .quality-unknown {{
+            background-color: #f8f8f8;
+            color: #999;
         }}
         .view-link {{
             display: inline-block;
-            margin-top: 8px;
-            padding: 6px 12px;
+            padding: 6px 14px;
             background-color: #74ac00;
             color: white;
             text-decoration: none;
             border-radius: 4px;
-            font-size: 13px;
+            font-size: 12px;
             transition: background-color 0.2s;
         }}
         .view-link:hover {{
@@ -315,8 +347,32 @@ def annotate_species_with_quality(species_list: Iterable[Dict[str, Any]], place_
         time.sleep(rate_limit)
 
 
+def sort_species_by_quality(species_list: list) -> list:
+    """Sort species list by quality grade (Research Grade first, then Needs ID, then Casual).
+
+    Args:
+        species_list: List of species dictionaries with 'highest_quality_grade_label' field
+
+    Returns:
+        Sorted list with Research Grade species first
+    """
+    quality_order = {
+        "Research Grade": 0,
+        "Needs ID": 1,
+        "Casual": 2,
+        "Unknown": 3,
+        "API Error": 4,
+    }
+
+    def get_quality_key(species):
+        label = species.get("highest_quality_grade_label", "Unknown")
+        return quality_order.get(label, 3)
+
+    return sorted(species_list, key=get_quality_key)
+
+
 def format_species_item(species: Dict[str, Any], query: Dict[str, Any], is_new: bool = False) -> str:
-    """Format a single species as HTML list item."""
+    """Format a single species as HTML table row."""
     name = species.get("name", "Unknown")
     common_name = species.get("preferred_common_name")
     taxon_id = species.get("id")
@@ -324,14 +380,13 @@ def format_species_item(species: Dict[str, Any], query: Dict[str, Any], is_new: 
     rank = species.get("rank", "").capitalize()
     iconic_taxon = species.get("iconic_taxon", "")
     obs_count = species.get("observation_count", 0)
-    historical_count = species.get("historical_count")
     quality_label = species.get("highest_quality_grade_label")
 
-    # Build display name
+    # Build display name - common name on top, Latin name below
     if common_name:
-        display_name = f'{common_name} <span class="species-name-latin">{name}</span>'
+        display_name = f'{common_name}<span class="species-name-latin">{name}</span>'
     else:
-        display_name = name
+        display_name = f'<span style="font-style: italic;">{name}</span>'
 
     # Build observation link
     obs_link = f"https://www.inaturalist.org/observations?place_id={place_id}&taxon_id={taxon_id}"
@@ -346,36 +401,35 @@ def format_species_item(species: Dict[str, Any], query: Dict[str, Any], is_new: 
         badges.append(f'<span class="species-badge badge-taxon">{iconic_taxon}</span>')
 
     badges_html = "".join(badges)
+    meta_html = f'<div class="species-meta">{badges_html}</div>' if badges_html else ""
 
-    # Build historical count display
-    historical_html = ""
-    if historical_count is not None:
-        if historical_count == 0:
-            historical_html = '<div class="historical-count">No historical observations</div>'
-        else:
-            historical_html = f'<div class="historical-count">Historical: {historical_count:,} obs.</div>'
-
+    # Build quality badge with appropriate styling
     quality_html = ""
     if quality_label:
-        quality_html = f'<div class="quality-grade">Best quality: {quality_label}</div>'
+        quality_class = "quality-unknown"
+        if quality_label == "Research Grade":
+            quality_class = "quality-research"
+        elif quality_label == "Needs ID":
+            quality_class = "quality-needs-id"
+        elif quality_label == "Casual":
+            quality_class = "quality-casual"
+        quality_html = f'<span class="quality-badge {quality_class}">{quality_label}</span>'
 
     return f"""
-    <li class="species-item">
-        <div class="species-info">
-            <div class="species-name">{display_name}</div>
-            <div class="species-meta">
-                {badges_html}
-            </div>
-        </div>
-        <div class="species-stats">
-            <div class="obs-count">{obs_count:,}</div>
-            <div class="obs-label">observations</div>
-            {quality_html}
-            {historical_html}
-            <a href="{obs_link}" class="view-link">View on iNaturalist</a>
-        </div>
-    </li>
-    """
+        <tr>
+            <td class="col-name">
+                <div class="species-name">{display_name}</div>
+                {meta_html}
+            </td>
+            <td class="col-obs">
+                <span class="obs-count">{obs_count:,}</span>
+                <span class="obs-label">observations</span>
+            </td>
+            <td class="col-quality">{quality_html}</td>
+            <td class="col-action">
+                <a href="{obs_link}" class="view-link">View on iNaturalist</a>
+            </td>
+        </tr>"""
 
 
 def generate_new_species_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2) -> str:
@@ -427,19 +481,31 @@ def generate_new_species_html(data: Dict[str, Any], include_quality: bool = Fals
     </div>
     """
 
-    # Build new species list
+    # Build new species table
     new_species_html = ""
     if new_species:
         if include_quality:
             annotate_species_with_quality(new_species, query.get("place_id"), rate_limit=rate_limit)
-        species_items = [format_species_item(sp, query, is_new=True) for sp in new_species]
+            # Sort by quality grade (Research Grade first)
+            new_species = sort_species_by_quality(new_species)
+        species_rows = [format_species_item(sp, query, is_new=True) for sp in new_species]
         new_species_html = f"""
         <div class="species-section">
             <h2>New Species ({new_count:,})</h2>
             <p>Species observed in {region} during {time_period} with no observations in the previous {lookback_years} years.</p>
-            <ul class="species-list">
-                {"".join(species_items)}
-            </ul>
+            <table class="species-table">
+                <thead>
+                    <tr>
+                        <th class="col-name">Species</th>
+                        <th class="col-obs">Count</th>
+                        <th class="col-quality">Quality</th>
+                        <th class="col-action">Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {"".join(species_rows)}
+                </tbody>
+            </table>
         </div>
         """
 
@@ -485,18 +551,30 @@ def generate_list_species_html(data: Dict[str, Any], include_quality: bool = Fal
     </div>
     """
 
-    # Build species list
+    # Build species table
     species_html = ""
     if species:
         if include_quality:
             annotate_species_with_quality(species, query.get("place_id"), rate_limit=rate_limit)
-        species_items = [format_species_item(sp, query, is_new=False) for sp in species]
+            # Sort by quality grade (Research Grade first)
+            species = sort_species_by_quality(species)
+        species_rows = [format_species_item(sp, query, is_new=False) for sp in species]
         species_html = f"""
         <div class="species-section">
             <h2>All Species ({species_count:,})</h2>
-            <ul class="species-list">
-                {"".join(species_items)}
-            </ul>
+            <table class="species-table">
+                <thead>
+                    <tr>
+                        <th class="col-name">Species</th>
+                        <th class="col-obs">Count</th>
+                        <th class="col-quality">Quality</th>
+                        <th class="col-action">Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {"".join(species_rows)}
+                </tbody>
+            </table>
         </div>
         """
 
