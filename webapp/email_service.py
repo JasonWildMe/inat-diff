@@ -77,9 +77,15 @@ class MandrillEmailService:
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
 
-    def send_verification_email(self, to_email: str, token: str, region: str, frequency: str = "monthly") -> bool:
+    def send_verification_email(self, to_email: str, token: str, region: str, frequency: str = "monthly", taxon_filter: str = None) -> bool:
         """Send email verification link to new subscriber."""
         verify_url = f"{BASE_URL}/verify/{token}"
+
+        # Build scope description
+        scope_parts = [f"<strong>{region}</strong>"]
+        if taxon_filter:
+            scope_parts.append(f"filtered to <strong>{taxon_filter}</strong>")
+        scope_description = " ".join(scope_parts)
 
         subject = f"Confirm your invasive species report subscription for {region}"
 
@@ -111,7 +117,7 @@ class MandrillEmailService:
                 </div>
                 <div class="content">
                     <h2>Confirm Your Subscription</h2>
-                    <p>You've requested to receive {frequency} invasive species reports for <strong>{region}</strong>.</p>
+                    <p>You've requested to receive {frequency} invasive species reports for {scope_description}.</p>
                     <p>Click the button below to confirm your email address and activate your subscription:</p>
                     <p style="text-align: center;">
                         <a href="{verify_url}" class="button">Confirm Subscription</a>
@@ -139,17 +145,29 @@ class MandrillEmailService:
         total_species: int,
         report_uuid: str,
         unsubscribe_token: str,
-        frequency: str = "monthly"
+        frequency: str = "monthly",
+        taxon_filter: str = None
     ) -> bool:
         """Send the invasive species report inline in email."""
         unsubscribe_url = f"{BASE_URL}/unsubscribe/{unsubscribe_token}"
         web_report_url = f"{BASE_URL}/report/{report_uuid}"
 
         freq_label = frequency.title()  # "Weekly" or "Monthly"
+
+        # Build scope description for header
+        scope_description = region
+        if taxon_filter:
+            scope_description = f"{region} ({taxon_filter})"
+
         if new_species_count > 0:
-            subject = f"Alert: {new_species_count} new species detected in {region}"
+            subject = f"Alert: {new_species_count} new species detected in {scope_description}"
         else:
-            subject = f"{freq_label} report: No new species in {region}"
+            subject = f"{freq_label} report: No new species in {scope_description}"
+
+        # Build scope line for email body
+        scope_line = f"<strong>Region:</strong> {region}"
+        if taxon_filter:
+            scope_line += f" | <strong>Taxon filter:</strong> {taxon_filter}"
 
         # Wrap the report HTML with email wrapper
         html_content = f"""
@@ -159,6 +177,7 @@ class MandrillEmailService:
             <style>
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                 .email-header {{ background: #74ac00; color: white; padding: 15px; text-align: center; }}
+                .email-scope {{ background: #f5f5f5; padding: 10px 15px; font-size: 13px; color: #555; }}
                 .email-footer {{
                     padding: 15px;
                     font-size: 11px;
@@ -173,7 +192,11 @@ class MandrillEmailService:
         <body>
             <div class="email-header">
                 <h2 style="margin: 0;">iNaturalist Invasives Monitor</h2>
-                <p style="margin: 5px 0 0 0; opacity: 0.9;">{freq_label} Report for {region}</p>
+                <p style="margin: 5px 0 0 0; opacity: 0.9;">{freq_label} Report</p>
+            </div>
+
+            <div class="email-scope">
+                {scope_line}
             </div>
 
             <div class="report-content">
@@ -201,10 +224,16 @@ class MandrillEmailService:
         to_email: str,
         region: str,
         frequency: str,
-        manage_token: str
+        manage_token: str,
+        taxon_filter: str = None
     ) -> bool:
         """Send confirmation that subscription is now active."""
         manage_url = f"{BASE_URL}/manage/{manage_token}"
+
+        # Build scope description
+        scope_description = f"<strong>{region}</strong>"
+        if taxon_filter:
+            scope_description += f" (filtered to <strong>{taxon_filter}</strong>)"
 
         subject = f"Subscription confirmed: {region} invasive species reports"
 
@@ -235,7 +264,7 @@ class MandrillEmailService:
                 </div>
                 <div class="content">
                     <h2>You're all set</h2>
-                    <p>Your subscription to invasive species reports for <strong>{region}</strong> is now active.</p>
+                    <p>Your subscription to invasive species reports for {scope_description} is now active.</p>
                     <p><strong>Report frequency:</strong> {frequency.title()}</p>
                     <p>You'll receive your first report at the beginning of the next {frequency} period.</p>
                     <p style="text-align: center; margin-top: 20px;">

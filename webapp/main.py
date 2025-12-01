@@ -427,7 +427,8 @@ async def verify_subscription(
         to_email=subscription.email,
         region=subscription.place_display_name or subscription.region,
         frequency=subscription.frequency.value,
-        manage_token=manage_token.token
+        manage_token=manage_token.token,
+        taxon_filter=subscription.taxon_filter
     )
 
     logger.info(f"Subscription verified: {subscription.email} for {subscription.region}")
