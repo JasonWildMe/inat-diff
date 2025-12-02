@@ -4,7 +4,12 @@ Fix subscriptions that are verified but marked as inactive.
 This script sets is_active=True for all verified subscriptions.
 """
 import sys
-sys.path.insert(0, '/mnt/c/inat-diff-JasonWildMe')
+import os
+
+# Add parent directory to path so we can import webapp
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+sys.path.insert(0, parent_dir)
 
 from webapp.models import SessionLocal, Subscription
 
