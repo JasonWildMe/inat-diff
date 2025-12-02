@@ -410,8 +410,9 @@ async def verify_subscription(
 
     subscription = token_obj.subscription
 
-    # Mark as verified
+    # Mark as verified and active
     subscription.is_verified = True
+    subscription.is_active = True
     subscription.verified_at = datetime.utcnow()
     token_obj.used_at = datetime.utcnow()
     db.commit()
