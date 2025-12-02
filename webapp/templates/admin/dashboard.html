@@ -37,47 +37,56 @@
 <div class="card">
     <h3>Recent Subscriptions</h3>
     {% if recent_subscriptions %}
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Email</th>
-                <th>Region</th>
-                <th>Frequency</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for sub in recent_subscriptions %}
-            <tr>
-                <td>{{ sub.id }}</td>
-                <td>{{ sub.email }}</td>
-                <td>{{ sub.place_display_name or sub.region }}</td>
-                <td>{{ sub.frequency.value }}</td>
-                <td>
-                    {% if sub.is_verified and sub.is_active %}
-                        <span class="badge badge-success">Active</span>
-                    {% elif not sub.is_verified %}
-                        <span class="badge badge-pending">Unverified</span>
-                    {% else %}
-                        <span class="badge badge-error">Inactive</span>
-                    {% endif %}
-                </td>
-                <td>{{ sub.created_at.strftime('%Y-%m-%d') }}</td>
-                <td>
-                    {% if sub.is_verified and sub.is_active %}
-                        <button onclick="generateReport({{ sub.id }})" class="btn" style="padding: 5px 10px; font-size: 12px;">Generate report</button>
-                    {% elif not sub.is_verified %}
-                        <button onclick="resendVerification({{ sub.id }})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">Resend</button>
-                    {% endif %}
-                    <button onclick="deleteSubscription({{ sub.id }}, '{{ sub.email }}')" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Delete</button>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div style="margin-bottom: 15px;">
+        <input type="text" id="subscriptionSearch" placeholder="Search by email, region, or taxon..."
+               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+               onkeyup="filterSubscriptions()">
+    </div>
+    <div style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px;">
+        <table id="subscriptionsTable">
+            <thead style="position: sticky; top: 0; background: #f9f9f9; z-index: 10;">
+                <tr>
+                    <th>ID</th>
+                    <th>Email</th>
+                    <th>Region</th>
+                    <th>Taxon Filter</th>
+                    <th>Frequency</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in recent_subscriptions %}
+                <tr>
+                    <td>{{ sub.id }}</td>
+                    <td>{{ sub.email }}</td>
+                    <td>{{ sub.place_display_name or sub.region }}</td>
+                    <td>{{ sub.taxon_filter or 'All' }}</td>
+                    <td>{{ sub.frequency.value }}</td>
+                    <td>
+                        {% if sub.is_verified and sub.is_active %}
+                            <span class="badge badge-success">Active</span>
+                        {% elif not sub.is_verified %}
+                            <span class="badge badge-pending">Unverified</span>
+                        {% else %}
+                            <span class="badge badge-error">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ sub.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td>
+                        {% if sub.is_verified and sub.is_active %}
+                            <button onclick="generateReport({{ sub.id }})" class="btn" style="padding: 5px 10px; font-size: 12px;">Generate report</button>
+                        {% elif not sub.is_verified %}
+                            <button onclick="resendVerification({{ sub.id }})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">Resend</button>
+                        {% endif %}
+                        <button onclick="deleteSubscription({{ sub.id }}, '{{ sub.email }}')" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <p>No subscriptions yet.</p>
     {% endif %}
@@ -142,6 +151,26 @@
 
 {% block extra_js %}
 <script>
+function filterSubscriptions() {
+    const searchInput = document.getElementById('subscriptionSearch');
+    const filter = searchInput.value.toLowerCase();
+    const table = document.getElementById('subscriptionsTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const email = row.cells[1].textContent.toLowerCase();
+        const region = row.cells[2].textContent.toLowerCase();
+        const taxon = row.cells[3].textContent.toLowerCase();
+
+        if (email.includes(filter) || region.includes(filter) || taxon.includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    }
+}
+
 async function triggerReports(frequency) {
     if (!confirm(`Trigger ${frequency} reports for all active subscriptions?`)) return;
 
