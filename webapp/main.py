@@ -314,21 +314,32 @@ async def create_subscription(
                 status_code=400
             )
 
-    # Check for existing subscription
+    # Resolve taxon_id if provided (before duplicate check)
+    resolved_taxon_id = None
+    if taxon_id and taxon_id.strip():
+        try:
+            resolved_taxon_id = int(taxon_id.strip())
+        except ValueError:
+            resolved_taxon_id = None
+
+    # Check for existing subscription (including taxon filter)
     existing = db.query(Subscription).filter(
         Subscription.email == email.lower(),
         Subscription.region == region,
+        Subscription.taxon_id == resolved_taxon_id,
         Subscription.is_active == True
     ).first()
 
     if existing:
         if existing.is_verified:
+            # Build message with taxon filter info if present
+            taxon_msg = f" (filtered to {existing.taxon_filter})" if existing.taxon_filter else ""
             return templates.TemplateResponse(
                 "message.html",
                 {
                     "request": request,
                     "title": "Already Subscribed",
-                    "message": f"You already have an active subscription for {region}. Check your email for past reports."
+                    "message": f"You already have an active subscription for {region}{taxon_msg}. Check your email for past reports."
                 }
             )
         else:
@@ -345,14 +356,6 @@ async def create_subscription(
 
     # Create new subscription
     freq_enum = Frequency.WEEKLY if frequency == "weekly" else Frequency.MONTHLY
-
-    # Resolve taxon_id if provided
-    resolved_taxon_id = None
-    if taxon_id and taxon_id.strip():
-        try:
-            resolved_taxon_id = int(taxon_id.strip())
-        except ValueError:
-            resolved_taxon_id = None
 
     subscription = Subscription(
         email=email.lower().strip(),
