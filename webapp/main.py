@@ -431,9 +431,8 @@ async def verify_subscription(
             "verified.html",
             {
                 "request": request,
-                "email": subscription.email,
-                "region": subscription.place_display_name or subscription.region,
-                "manage_url": f"{BASE_URL}/manage/{manage_token.token}"
+                "subscription": subscription,
+                "manage_token": manage_token.token
             }
         )
 
