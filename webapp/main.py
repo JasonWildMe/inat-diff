@@ -413,12 +413,42 @@ async def verify_subscription(
 
     subscription = token_obj.subscription
 
+    # Check if already verified (handle duplicate clicks/prefetch)
+    if subscription.is_verified:
+        logger.info(f"Subscription already verified: {subscription.email}")
+        # Find existing manage token or create one
+        manage_token = db.query(Token).filter(
+            Token.subscription_id == subscription.id,
+            Token.token_type == "manage"
+        ).first()
+        if not manage_token:
+            manage_token = Token.generate(subscription.id, "manage")
+            manage_token.expires_at = datetime.utcnow() + timedelta(days=365)
+            db.add(manage_token)
+            db.commit()
+
+        return templates.TemplateResponse(
+            "verified.html",
+            {
+                "request": request,
+                "email": subscription.email,
+                "region": subscription.place_display_name or subscription.region,
+                "manage_url": f"{BASE_URL}/manage/{manage_token.token}"
+            }
+        )
+
     # Mark as verified and active
     subscription.is_verified = True
     subscription.is_active = True
     subscription.verified_at = datetime.utcnow()
-    token_obj.used_at = datetime.utcnow()
+
+    # Only set used_at on first actual use
+    if token_obj.used_at is None:
+        token_obj.used_at = datetime.utcnow()
+
     db.commit()
+
+    logger.info(f"Subscription verified: {subscription.email} for {subscription.region}")
 
     # Generate manage token for future use
     manage_token = Token.generate(subscription.id, "manage")
@@ -434,8 +464,6 @@ async def verify_subscription(
         manage_token=manage_token.token,
         taxon_filter=subscription.taxon_filter
     )
-
-    logger.info(f"Subscription verified: {subscription.email} for {subscription.region}")
 
     return templates.TemplateResponse(
         "verified.html",

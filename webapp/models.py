@@ -154,8 +154,18 @@ class Token(Base):
 
     @property
     def is_valid(self) -> bool:
-        """Check if token is valid (not expired and not used)."""
-        return self.used_at is None and datetime.utcnow() < self.expires_at
+        """Check if token is valid (not expired).
+
+        Note: We intentionally do NOT check used_at here. The token remains
+        valid until it expires, even if it's been "used" before. This handles:
+        - Email client link prefetch/preview features
+        - Corporate security scanners that visit links
+        - Users clicking the link multiple times
+
+        The verification endpoint is idempotent - clicking a valid verification
+        link multiple times just shows the success page.
+        """
+        return datetime.utcnow() < self.expires_at
 
     def __repr__(self):
         return f"<Token {self.token_type}: {self.token[:8]}...>"
