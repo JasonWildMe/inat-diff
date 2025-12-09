@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm Unsubscribe - iNaturalist Invasives Monitor{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align: center; max-width: 500px; margin: 0 auto;">
+    <h2>Unsubscribe?</h2>
+
+    <p>Are you sure you want to unsubscribe from invasive species reports for:</p>
+
+    <p style="font-size: 1.2em; font-weight: bold; color: #74ac00;">
+        {{ subscription.place_display_name or subscription.region }}
+        {% if subscription.taxon_filter %}
+        <br><span style="font-size: 0.9em; color: #666;">({{ subscription.taxon_filter }})</span>
+        {% endif %}
+    </p>
+
+    <p style="color: #666; margin: 20px 0;">
+        You will no longer receive {{ subscription.frequency.value }} reports for this region.
+    </p>
+
+    <form method="POST" action="/unsubscribe/{{ token }}" style="margin-top: 20px;">
+        <button type="submit" class="btn btn-danger" style="padding: 12px 30px; font-size: 1.1em;">
+            Yes, Unsubscribe
+        </button>
+    </form>
+
+    <p style="margin-top: 20px;">
+        <a href="/" style="color: #666;">Cancel - Keep my subscription</a>
+    </p>
+</div>
+{% endblock %}

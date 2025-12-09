@@ -475,12 +475,59 @@ async def verify_subscription(
 
 
 @app.get("/unsubscribe/{token}")
+async def unsubscribe_confirm(
+    request: Request,
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """Show unsubscribe confirmation page (two-step unsubscribe for security scanners)."""
+    token_obj = db.query(Token).filter(
+        Token.token == token,
+        Token.token_type == "unsubscribe"
+    ).first()
+
+    if not token_obj:
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "error_title": "Invalid Link",
+                "error_message": "This unsubscribe link is invalid."
+            },
+            status_code=400
+        )
+
+    subscription = token_obj.subscription
+
+    # If already unsubscribed, show message
+    if not subscription.is_active:
+        return templates.TemplateResponse(
+            "message.html",
+            {
+                "request": request,
+                "title": "Already Unsubscribed",
+                "message": f"You've already been unsubscribed from {subscription.place_display_name or subscription.region} reports."
+            }
+        )
+
+    # Show confirmation page (GET request does NOT unsubscribe)
+    return templates.TemplateResponse(
+        "unsubscribe_confirm.html",
+        {
+            "request": request,
+            "subscription": subscription,
+            "token": token
+        }
+    )
+
+
+@app.post("/unsubscribe/{token}")
 async def unsubscribe(
     request: Request,
     token: str,
     db: Session = Depends(get_db)
 ):
-    """Unsubscribe from reports."""
+    """Actually perform the unsubscribe (requires POST from confirmation page)."""
     token_obj = db.query(Token).filter(
         Token.token == token,
         Token.token_type == "unsubscribe"
@@ -508,7 +555,7 @@ async def unsubscribe(
         {
             "request": request,
             "title": "Unsubscribed",
-            "message": f"You've been unsubscribed from {subscription.region} reports. You can resubscribe anytime at {BASE_URL}."
+            "message": f"You've been unsubscribed from {subscription.place_display_name or subscription.region} reports. You can resubscribe anytime at {BASE_URL}."
         }
     )
 
