@@ -79,6 +79,8 @@
                             <button onclick="generateReport({{ sub.id }})" class="btn" style="padding: 5px 10px; font-size: 12px;">Generate report</button>
                         {% elif not sub.is_verified %}
                             <button onclick="resendVerification({{ sub.id }})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">Resend</button>
+                        {% elif sub.is_verified and not sub.is_active %}
+                            <button onclick="activateSubscription({{ sub.id }}, '{{ sub.email }}')" class="btn" style="padding: 5px 10px; font-size: 12px;">Activate</button>
                         {% endif %}
                         <button onclick="deleteSubscription({{ sub.id }}, '{{ sub.email }}')" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Delete</button>
                     </td>
@@ -191,6 +193,19 @@ async function generateReport(subscriptionId) {
         const response = await fetch(`/admin/generate-report/${subscriptionId}`, { method: 'POST' });
         const data = await response.json();
         alert(data.message || 'Report generation started');
+        location.reload();
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function activateSubscription(subscriptionId, email) {
+    if (!confirm(`Activate subscription for ${email}?`)) return;
+
+    try {
+        const response = await fetch(`/admin/activate-subscription/${subscriptionId}`, { method: 'POST' });
+        const data = await response.json();
+        alert(data.message || 'Subscription activated');
         location.reload();
     } catch (error) {
         alert('Error: ' + error.message);

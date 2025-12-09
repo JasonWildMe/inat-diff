@@ -816,6 +816,31 @@ async def delete_subscription(
     return {"message": f"Subscription for {email} ({region}) deleted"}
 
 
+@app.post("/admin/activate-subscription/{subscription_id}")
+async def activate_subscription(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    """Activate an inactive subscription (requires authentication)."""
+    subscription = db.query(Subscription).filter(
+        Subscription.id == subscription_id
+    ).first()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    if subscription.is_active:
+        return {"message": f"Subscription for {subscription.email} is already active"}
+
+    subscription.is_active = True
+    db.commit()
+
+    logger.info(f"Admin activated subscription {subscription_id}: {subscription.email} for {subscription.region}")
+
+    return {"message": f"Subscription for {subscription.email} ({subscription.place_display_name or subscription.region}) activated"}
+
+
 # =============================================================================
 # Health Check
 # =============================================================================
