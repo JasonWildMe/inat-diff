@@ -679,15 +679,18 @@ async def admin_dashboard(
         Report.status.in_([ReportStatus.PENDING, ReportStatus.RUNNING])
     ).count()
 
-    # Get recent subscriptions
+    # Get all subscriptions (searchable/scrollable in UI)
     recent_subscriptions = db.query(Subscription).order_by(
         Subscription.created_at.desc()
-    ).limit(20).all()
+    ).all()
 
-    # Get recent reports
-    recent_reports = db.query(Report).order_by(
+    # Get reports from last 90 days (searchable/scrollable in UI)
+    ninety_days_ago = datetime.utcnow() - timedelta(days=90)
+    recent_reports = db.query(Report).filter(
+        Report.created_at >= ninety_days_ago
+    ).order_by(
         Report.created_at.desc()
-    ).limit(20).all()
+    ).all()
 
     return templates.TemplateResponse(
         "admin/dashboard.html",

@@ -35,7 +35,7 @@
 </div>
 
 <div class="card">
-    <h3>Recent Subscriptions</h3>
+    <h3>All Subscriptions</h3>
     {% if recent_subscriptions %}
     <div style="margin-bottom: 15px;">
         <input type="text" id="subscriptionSearch" placeholder="Search by email, region, or taxon..."
@@ -95,56 +95,65 @@
 </div>
 
 <div class="card">
-    <h3>Recent Reports</h3>
+    <h3>Reports (Last 90 Days)</h3>
     {% if recent_reports %}
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Subscription</th>
-                <th>Status</th>
-                <th>New Species</th>
-                <th>Created</th>
-                <th>Email Sent</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for report in recent_reports %}
-            <tr>
-                <td>{{ report.id }}</td>
-                <td>{{ report.subscription_id }}</td>
-                <td>
-                    {% if report.status.value == 'completed' %}
-                        <span class="badge badge-success">Completed</span>
-                    {% elif report.status.value in ['pending', 'running'] %}
-                        <span class="badge badge-pending">{{ report.status.value.title() }}</span>
-                    {% else %}
-                        <span class="badge badge-error">Failed</span>
-                    {% endif %}
-                </td>
-                <td>{{ report.new_species_count if report.new_species_count is not none else '-' }}</td>
-                <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td>
-                    {% if report.email_sent %}
-                        <span style="color: #74ac00;">Yes</span>
-                    {% else %}
-                        <span style="color: #999;">No</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if report.status.value == 'completed' %}
-                        <a href="/report/{{ report.report_uuid }}" target="_blank">View</a>
-                    {% elif report.error_message %}
-                        <span title="{{ report.error_message }}" style="cursor: help; color: #d9534f;">Error</span>
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-            </tr>
+    <div style="margin-bottom: 15px;">
+        <input type="text" id="reportSearch" placeholder="Search by email, region, or status..."
+               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+               onkeyup="filterReports()">
+    </div>
+    <div style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px;">
+        <table id="reportsTable">
+            <thead style="position: sticky; top: 0; background: #f9f9f9; z-index: 10;">
+                <tr>
+                    <th>ID</th>
+                    <th>Email</th>
+                    <th>Region</th>
+                    <th>Status</th>
+                    <th>New Species</th>
+                    <th>Created</th>
+                    <th>Email Sent</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in recent_reports %}
+                <tr>
+                    <td>{{ report.id }}</td>
+                    <td>{{ report.subscription.email }}</td>
+                    <td>{{ report.subscription.place_display_name or report.subscription.region }}</td>
+                    <td>
+                        {% if report.status.value == 'completed' %}
+                            <span class="badge badge-success">Completed</span>
+                        {% elif report.status.value in ['pending', 'running'] %}
+                            <span class="badge badge-pending">{{ report.status.value.title() }}</span>
+                        {% else %}
+                            <span class="badge badge-error">Failed</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ report.new_species_count if report.new_species_count is not none else '-' }}</td>
+                    <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        {% if report.email_sent %}
+                            <span style="color: #74ac00;">Yes</span>
+                        {% else %}
+                            <span style="color: #999;">No</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if report.status.value == 'completed' %}
+                            <a href="/report/{{ report.report_uuid }}" target="_blank">View</a>
+                        {% elif report.error_message %}
+                            <span title="{{ report.error_message }}" style="cursor: help; color: #d9534f;">Error</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <p>No reports generated yet.</p>
     {% endif %}
@@ -166,6 +175,26 @@ function filterSubscriptions() {
         const taxon = row.cells[3].textContent.toLowerCase();
 
         if (email.includes(filter) || region.includes(filter) || taxon.includes(filter)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    }
+}
+
+function filterReports() {
+    const searchInput = document.getElementById('reportSearch');
+    const filter = searchInput.value.toLowerCase();
+    const table = document.getElementById('reportsTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const email = row.cells[1].textContent.toLowerCase();
+        const region = row.cells[2].textContent.toLowerCase();
+        const status = row.cells[3].textContent.toLowerCase();
+
+        if (email.includes(filter) || region.includes(filter) || status.includes(filter)) {
             row.style.display = '';
         } else {
             row.style.display = 'none';
