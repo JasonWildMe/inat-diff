@@ -49,6 +49,7 @@
                     <th>ID</th>
                     <th>Email</th>
                     <th>Region</th>
+                    <th>Place ID</th>
                     <th>Taxon Filter</th>
                     <th>Frequency</th>
                     <th>Status</th>
@@ -62,6 +63,7 @@
                     <td>{{ sub.id }}</td>
                     <td>{{ sub.email }}</td>
                     <td>{{ sub.place_display_name or sub.region }}</td>
+                    <td><a href="https://www.inaturalist.org/places/{{ sub.place_id }}" target="_blank">{{ sub.place_id }}</a></td>
                     <td>{{ sub.taxon_filter or 'All' }}</td>
                     <td>{{ sub.frequency.value }}</td>
                     <td>
@@ -172,9 +174,10 @@ function filterSubscriptions() {
         const row = rows[i];
         const email = row.cells[1].textContent.toLowerCase();
         const region = row.cells[2].textContent.toLowerCase();
-        const taxon = row.cells[3].textContent.toLowerCase();
+        const placeId = row.cells[3].textContent.toLowerCase();
+        const taxon = row.cells[4].textContent.toLowerCase();
 
-        if (email.includes(filter) || region.includes(filter) || taxon.includes(filter)) {
+        if (email.includes(filter) || region.includes(filter) || placeId.includes(filter) || taxon.includes(filter)) {
             row.style.display = '';
         } else {
             row.style.display = 'none';
