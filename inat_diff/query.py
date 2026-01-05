@@ -199,6 +199,7 @@ class SpeciesQuery:
                                        rate_limit: float = 1.2,  # iNaturalist API limit: 60-100 req/min (https://www.inaturalist.org/pages/api+recommended+practices)
                                                                  # 1.2 seconds = 50 req/min, conservative to avoid throttling
                                        taxon_id: Optional[int] = None,
+                                       place_id: Optional[int] = None,
                                        verbose: bool = False) -> Dict[str, Any]:
         """
         Find all species that appear to be new to a region during a time period.
@@ -211,10 +212,11 @@ class SpeciesQuery:
 
         Args:
             time_period: Recent time period to check
-            region: Name of the region
+            region: Name of the region (used for display and fallback resolution)
             lookback_years: How many years to look back for historical data
             rate_limit: Seconds to wait between API calls (default: 1.2 = 50 req/min)
             taxon_id: Optional iNaturalist taxon ID to filter results
+            place_id: Optional iNaturalist place ID (if provided, skips resolution from region name)
             verbose: Print progress information
 
         Returns:
@@ -229,7 +231,19 @@ class SpeciesQuery:
         historical_end = datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=1)
         historical_start = historical_end - timedelta(days=365 * lookback_years)
 
-        place_id, place_info = self.client.resolve_place_with_info(region)
+        # Use provided place_id or resolve from region name
+        if place_id:
+            # Use the provided place_id directly and fetch place info
+            place_info = self.client.get_place_by_id(place_id)
+            if not place_info:
+                # Fall back to resolving from region name if place_id is invalid
+                place_id, place_info = self.client.resolve_place_with_info(region)
+                if verbose:
+                    print(f"⚠️  Provided place_id was invalid, resolved from region name", file=sys.stderr)
+            else:
+                place_info["matched_as"] = "provided place_id"
+        else:
+            place_id, place_info = self.client.resolve_place_with_info(region)
 
         # Print place resolution info if verbose
         if verbose:

@@ -94,7 +94,8 @@ def generate_report_task(self, report_id: int):
                 region=subscription.region,
                 lookback_years=subscription.lookback_years or DEFAULT_LOOKBACK_YEARS,
                 rate_limit=DEFAULT_RATE_LIMIT,
-                taxon_id=subscription.taxon_id
+                taxon_id=subscription.taxon_id,
+                place_id=subscription.place_id
             )
         except Exception as e:
             logger.error(f"Query failed for report {report_id}: {e}")
