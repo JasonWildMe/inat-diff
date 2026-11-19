@@ -6,6 +6,7 @@ import sys
 import time
 from datetime import datetime
 from functools import lru_cache
+from html import escape
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
@@ -381,12 +382,14 @@ def sort_species_by_quality(species_list: list) -> list:
 
 def format_species_item(species: Dict[str, Any], query: Dict[str, Any], is_new: bool = False) -> str:
     """Format a single species as HTML table row."""
-    name = species.get("name", "Unknown")
+    # All API/user-sourced strings are HTML-escaped before interpolation.
+    name = escape(str(species.get("name") or "Unknown"))
     common_name = species.get("preferred_common_name")
-    taxon_id = species.get("id")
-    place_id = query.get("place_id")
-    rank = species.get("rank", "").capitalize()
-    iconic_taxon = species.get("iconic_taxon", "")
+    common_name = escape(str(common_name)) if common_name else None
+    taxon_id = _normalize_int(species.get("id"))
+    place_id = _normalize_int(query.get("place_id"))
+    rank = escape(str(species.get("rank") or "").capitalize())
+    iconic_taxon = escape(str(species.get("iconic_taxon") or ""))
     obs_count = species.get("observation_count", 0)
     quality_label = species.get("highest_quality_grade_label")
 
@@ -421,7 +424,7 @@ def format_species_item(species: Dict[str, Any], query: Dict[str, Any], is_new: 
             quality_class = "quality-needs-id"
         elif quality_label == "Casual":
             quality_class = "quality-casual"
-        quality_html = f'<span class="quality-badge {quality_class}">{quality_label}</span>'
+        quality_html = f'<span class="quality-badge {quality_class}">{escape(str(quality_label))}</span>'
 
     return f"""
         <tr>
@@ -443,13 +446,13 @@ def format_species_item(species: Dict[str, Any], query: Dict[str, Any], is_new: 
 def generate_new_species_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2) -> str:
     """Generate HTML for new-species command output."""
     query = data.get("query", {})
-    region = query.get("region", "Unknown Region")
-    time_period = query.get("time_period", "")
-    start_date = query.get("start_date", "")
-    end_date = query.get("end_date", "")
+    region = escape(str(query.get("region") or "Unknown Region"))
+    time_period = escape(str(query.get("time_period") or ""))
+    start_date = escape(str(query.get("start_date") or ""))
+    end_date = escape(str(query.get("end_date") or ""))
 
-    lookback_years = data.get("lookback_years", 0)
-    lookback_period = data.get("lookback_period", "")
+    lookback_years = _normalize_int(data.get("lookback_years")) or 0
+    lookback_period = escape(str(data.get("lookback_period") or ""))
 
     total_species = data.get("total_species_in_period", 0)
     new_count = data.get("new_species_count", 0)
@@ -524,10 +527,10 @@ def generate_new_species_html(data: Dict[str, Any], include_quality: bool = Fals
 def generate_list_species_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2) -> str:
     """Generate HTML for list-species command output."""
     query = data.get("query", {})
-    region = query.get("region", "Unknown Region")
-    time_period = query.get("time_period", "")
-    start_date = query.get("start_date", "")
-    end_date = query.get("end_date", "")
+    region = escape(str(query.get("region") or "Unknown Region"))
+    time_period = escape(str(query.get("time_period") or ""))
+    start_date = escape(str(query.get("start_date") or ""))
+    end_date = escape(str(query.get("end_date") or ""))
 
     species_count = data.get("species_count", 0)
     total_observations = data.get("total_observations", 0)
@@ -593,15 +596,15 @@ def generate_list_species_html(data: Dict[str, Any], include_quality: bool = Fal
 def generate_query_html(data: Dict[str, Any]) -> str:
     """Generate HTML for query command output."""
     query = data.get("query", {})
-    taxon_name = query.get("taxon_name", "Unknown")
-    region = query.get("region", "Unknown Region")
-    time_period = query.get("time_period", "")
-    start_date = query.get("start_date", "")
-    end_date = query.get("end_date", "")
+    taxon_name = escape(str(query.get("taxon_name") or "Unknown"))
+    region = escape(str(query.get("region") or "Unknown Region"))
+    time_period = escape(str(query.get("time_period") or ""))
+    start_date = escape(str(query.get("start_date") or ""))
+    end_date = escape(str(query.get("end_date") or ""))
     total_results = data.get("total_results", 0)
 
     is_new = data.get("is_new_to_region")
-    analysis = data.get("analysis", "")
+    analysis = escape(str(data.get("analysis") or ""))
 
     # Build header
     title = f"{taxon_name} in {region}"
@@ -632,8 +635,8 @@ def generate_query_html(data: Dict[str, Any]) -> str:
     """
 
     # Build observation link
-    place_id = query.get("place_id")
-    taxon_id = query.get("taxon_id")
+    place_id = _normalize_int(query.get("place_id"))
+    taxon_id = _normalize_int(query.get("taxon_id"))
     obs_link = f"https://www.inaturalist.org/observations?place_id={place_id}&taxon_id={taxon_id}"
 
     link_section = f"""

@@ -168,13 +168,13 @@ The admin dashboard requires HTTP Basic Authentication. Manage admin users with 
 
 ```bash
 # Create an admin user (required before first login)
-python -m webapp.manage create-admin admin secretpassword
+python -m webapp.manage create-admin admin   # prompts for the password
 
 # List all admin users
 python -m webapp.manage list-admins
 
 # Reset a password
-python -m webapp.manage reset-password admin newpassword
+python -m webapp.manage reset-password admin   # prompts for the password
 
 # Delete an admin user
 python -m webapp.manage delete-admin oldadmin
@@ -194,10 +194,10 @@ Features:
 
 ```bash
 # Via curl with authentication
-curl -u admin:password -X POST http://localhost:8000/admin/trigger-reports/monthly
+curl -u admin -H "X-Requested-With: invasives-admin" -X POST http://localhost:8000/admin/trigger-reports/monthly
 
 # Or trigger for specific subscription
-curl -u admin:password -X POST http://localhost:8000/admin/generate-report/1
+curl -u admin -H "X-Requested-With: invasives-admin" -X POST http://localhost:8000/admin/generate-report/1
 ```
 
 ### Database Management

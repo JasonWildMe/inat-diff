@@ -137,7 +137,7 @@ Save and exit (Ctrl+X, Y, Enter).
 
 ```bash
 cd /opt/invasives/inat-diff
-sudo -u invasives ./venv/bin/python -m webapp.manage create-admin admin YourSecurePassword123
+sudo -u invasives ./venv/bin/python -m webapp.manage create-admin admin   # prompts for the password
 ```
 
 **Important**: Use a strong password! This protects your admin dashboard.
@@ -293,7 +293,7 @@ journalctl -u invasives-web -n 50
 
 2. Reset password if needed:
    ```bash
-   sudo -u invasives ./venv/bin/python -m webapp.manage reset-password admin newpassword
+   sudo -u invasives ./venv/bin/python -m webapp.manage reset-password admin   # prompts for the password
    ```
 
 ### Permission errors

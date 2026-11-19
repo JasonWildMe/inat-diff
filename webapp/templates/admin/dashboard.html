@@ -82,9 +82,9 @@
                         {% elif not sub.is_verified %}
                             <button onclick="resendVerification({{ sub.id }})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 12px;">Resend</button>
                         {% elif sub.is_verified and not sub.is_active %}
-                            <button onclick="activateSubscription({{ sub.id }}, '{{ sub.email }}')" class="btn" style="padding: 5px 10px; font-size: 12px;">Activate</button>
+                            <button data-email="{{ sub.email }}" onclick="activateSubscription({{ sub.id }}, this.dataset.email)" class="btn" style="padding: 5px 10px; font-size: 12px;">Activate</button>
                         {% endif %}
-                        <button onclick="deleteSubscription({{ sub.id }}, '{{ sub.email }}')" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Delete</button>
+                        <button data-email="{{ sub.email }}" onclick="deleteSubscription({{ sub.id }}, this.dataset.email)" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px;">Delete</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -205,12 +205,20 @@ function filterReports() {
     }
 }
 
+// Admin endpoints require this header; cross-site forms cannot set it (CSRF guard).
+// Throws on non-2xx so a 401/403/404 is never reported as success.
+async function adminPost(url) {
+    const response = await fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'invasives-admin' } });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    return data;
+}
+
 async function triggerReports(frequency) {
     if (!confirm(`Trigger ${frequency} reports for all active subscriptions?`)) return;
 
     try {
-        const response = await fetch(`/admin/trigger-reports/${frequency}`, { method: 'POST' });
-        const data = await response.json();
+        const data = await adminPost(`/admin/trigger-reports/${frequency}`);
         alert(data.message || 'Reports triggered');
         location.reload();
     } catch (error) {
@@ -222,8 +230,7 @@ async function generateReport(subscriptionId) {
     if (!confirm('Generate a report for this subscription now?')) return;
 
     try {
-        const response = await fetch(`/admin/generate-report/${subscriptionId}`, { method: 'POST' });
-        const data = await response.json();
+        const data = await adminPost(`/admin/generate-report/${subscriptionId}`);
         alert(data.message || 'Report generation started');
         location.reload();
     } catch (error) {
@@ -235,8 +242,7 @@ async function activateSubscription(subscriptionId, email) {
     if (!confirm(`Activate subscription for ${email}?`)) return;
 
     try {
-        const response = await fetch(`/admin/activate-subscription/${subscriptionId}`, { method: 'POST' });
-        const data = await response.json();
+        const data = await adminPost(`/admin/activate-subscription/${subscriptionId}`);
         alert(data.message || 'Subscription activated');
         location.reload();
     } catch (error) {
@@ -248,8 +254,7 @@ async function resendVerification(subscriptionId) {
     if (!confirm('Resend verification email to this subscriber?')) return;
 
     try {
-        const response = await fetch(`/admin/resend-verification/${subscriptionId}`, { method: 'POST' });
-        const data = await response.json();
+        const data = await adminPost(`/admin/resend-verification/${subscriptionId}`);
         alert(data.message || 'Verification email sent');
     } catch (error) {
         alert('Error: ' + error.message);
@@ -260,8 +265,7 @@ async function deleteSubscription(subscriptionId, email) {
     if (!confirm(`Delete subscription for ${email}? This cannot be undone.`)) return;
 
     try {
-        const response = await fetch(`/admin/delete-subscription/${subscriptionId}`, { method: 'POST' });
-        const data = await response.json();
+        const data = await adminPost(`/admin/delete-subscription/${subscriptionId}`);
         alert(data.message || 'Subscription deleted');
         location.reload();
     } catch (error) {

@@ -3,7 +3,7 @@
 from typing import List, Dict, Any, Optional
 from .client import iNatClient
 from .utils import parse_time_period, normalize_taxon_name
-from .exceptions import iNatAPIError
+from .exceptions import iNatAPIError, PlaceNotFoundError
 
 
 class SpeciesQuery:
@@ -236,10 +236,9 @@ class SpeciesQuery:
             # Use the provided place_id directly and fetch place info
             place_info = self.client.get_place_by_id(place_id)
             if not place_info:
-                # Fall back to resolving from region name if place_id is invalid
-                place_id, place_info = self.client.resolve_place_with_info(region)
-                if verbose:
-                    print(f"⚠️  Provided place_id was invalid, resolved from region name", file=sys.stderr)
+                # Don't silently fall back to a name search: it can pick a different
+                # place with the same name.
+                raise PlaceNotFoundError(f"iNaturalist place {place_id} ('{region}') no longer exists")
             else:
                 place_info["matched_as"] = "provided place_id"
         else:
@@ -259,9 +258,14 @@ class SpeciesQuery:
         def fetch_all_species(period_start: str, period_end: str, period_name: str):
             species_map = {}
             page = 1
+            per_page = 500
+            max_pages = 1000  # hard ceiling (500k taxa) so a bad API response can't loop forever
+            expected_total = None  # taxa count advertised by the API (first valid value wins)
             no_more_results = False
 
             while not no_more_results:
+                if page > max_pages:
+                    raise iNatAPIError(f"{period_name}: exceeded {max_pages} result pages")
                 max_retries = 5
                 retry_count = 0
                 success = False
@@ -273,20 +277,38 @@ class SpeciesQuery:
                             taxon_id=taxon_id,
                             d1=period_start,
                             d2=period_end,
-                            per_page=500,
+                            per_page=per_page,
                             page=page
                         )
 
-                        results = counts.get("results", [])
+                        # A malformed response must not be read as "no species" -
+                        # an empty historical list would produce false "new" alerts.
+                        if not isinstance(counts, dict) or not isinstance(counts.get("results"), list):
+                            raise iNatAPIError(f"Malformed species_counts response for {period_name}")
+                        results = counts["results"]
+                        total_results = counts.get("total_results")
+                        if expected_total is None and isinstance(total_results, int):
+                            expected_total = total_results
                         if not results:
+                            if expected_total is not None and len(species_map) < expected_total:
+                                raise iNatAPIError(
+                                    f"{period_name}: results ended early "
+                                    f"({len(species_map)} of {expected_total} taxa)")
                             no_more_results = True
                             success = True
                             break
 
+                        # Build the page separately and validate before merging, so a
+                        # retried page isn't mistaken for a repeat of itself.
+                        page_map = {}
                         for taxon in results:
                             species_taxon_id = taxon.get("taxon", {}).get("id")
+                            if not species_taxon_id:
+                                # Silently dropping a row could hide a historical taxon
+                                # and produce a false "new species" alert.
+                                raise iNatAPIError(f"{period_name}: page {page} has a row without a taxon id")
                             if species_taxon_id:
-                                species_map[species_taxon_id] = {
+                                page_map[species_taxon_id] = {
                                     "id": species_taxon_id,
                                     "name": taxon.get("taxon", {}).get("name"),
                                     "preferred_common_name": taxon.get("taxon", {}).get("preferred_common_name"),
@@ -296,6 +318,19 @@ class SpeciesQuery:
                                     "observation_count": taxon.get("count", 0)
                                 }
 
+                        if not (page_map.keys() - species_map.keys()):
+                            # Non-empty page with nothing new: API is repeating a page.
+                            raise iNatAPIError(f"{period_name}: page {page} repeated earlier results")
+                        merged_count = len(species_map.keys() | page_map.keys())
+                        if len(results) < per_page:
+                            # Short page = last page. A shortfall vs. the advertised
+                            # total means history is incomplete: fail, don't guess.
+                            if expected_total is not None and merged_count < expected_total:
+                                raise iNatAPIError(
+                                    f"{period_name}: results ended early "
+                                    f"({merged_count} of {expected_total} taxa)")
+                            no_more_results = True
+                        species_map.update(page_map)
                         success = True
                         page += 1
                         time.sleep(rate_limit)

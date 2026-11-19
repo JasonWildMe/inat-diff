@@ -9,6 +9,7 @@ class iNatClient:
     """Client for interacting with the iNaturalist API."""
 
     BASE_URL = "https://api.inaturalist.org/v1"
+    TIMEOUT = (10, 60)  # (connect, read) seconds; never block forever on the API
 
     def __init__(self, user_agent: str = "inat-diff/0.1.0"):
         """Initialize the client with optional user agent."""
@@ -22,11 +23,11 @@ class iNatClient:
         """Make a request to the iNaturalist API."""
         url = f"{self.BASE_URL}/{endpoint}"
         try:
-            response = self.session.get(url, params=params or {})
+            response = self.session.get(url, params=params or {}, timeout=self.TIMEOUT)
             response.raise_for_status()
             return response.json()
-        except requests.RequestException as e:
-            raise iNatAPIError(f"API request failed: {e}")
+        except (requests.RequestException, ValueError) as e:
+            raise iNatAPIError(f"API request failed: {e}") from e
 
     def search_places(self, query: str, place_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """Search for places by name."""
@@ -40,7 +41,8 @@ class iNatClient:
     def get_place(self, place_id: int) -> Dict[str, Any]:
         """Get detailed information about a specific place."""
         result = self._make_request(f"places/{place_id}")
-        return result.get("results", [{}])[0]
+        results = result.get("results") or [{}]
+        return results[0]
 
     def get_place_by_id(self, place_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -48,19 +50,27 @@ class iNatClient:
 
         Returns:
             dict with id, name, display_name, place_type or None if not found
+
+        Raises:
+            iNatAPIError: on transport/server errors, so callers don't mistake an
+            outage for "place does not exist" and silently pick another place.
         """
         try:
             place = self.get_place(place_id)
-            if not place or not place.get("id"):
+        except iNatAPIError as e:
+            cause = e.__cause__
+            if isinstance(cause, requests.HTTPError) and cause.response is not None \
+                    and cause.response.status_code in (404, 422):
                 return None
-            return {
-                "id": place.get("id"),
-                "name": place.get("name"),
-                "display_name": place.get("display_name"),
-                "place_type": place.get("place_type"),
-            }
-        except Exception:
+            raise
+        if not place or not place.get("id"):
             return None
+        return {
+            "id": place.get("id"),
+            "name": place.get("name"),
+            "display_name": place.get("display_name"),
+            "place_type": place.get("place_type"),
+        }
 
     def search_taxa(self, query: str, rank: Optional[str] = None) -> List[Dict[str, Any]]:
         """Search for taxa by name."""

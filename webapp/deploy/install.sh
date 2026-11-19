@@ -99,9 +99,12 @@ REDIS_URL=redis://localhost:6379/0
 PROCAPTCHA_SITEKEY=your_procaptcha_sitekey_here
 PROCAPTCHA_SECRET=your_procaptcha_secret_here
 EOF
-    chown invasives:invasives /opt/invasives/.env
-    chmod 600 /opt/invasives/.env
 fi
+# Enforce on every run (also fixes a pre-existing .env / DB / reports dir)
+chown invasives:invasives /opt/invasives/.env
+chmod 600 /opt/invasives/.env
+chmod 700 /opt/invasives/inat-diff/webapp/reports
+[ -f /opt/invasives/inat-diff/webapp/invasives.db ] && chmod 600 /opt/invasives/inat-diff/webapp/invasives.db
 
 echo "=== Installing systemd services ==="
 # Copy service files
@@ -135,7 +138,7 @@ echo "   nano /opt/invasives/.env"
 echo ""
 echo "2. Create an admin user:"
 echo "   cd /opt/invasives/inat-diff"
-echo "   sudo -u invasives ./venv/bin/python -m webapp.manage create-admin admin yourpassword"
+echo "   sudo -u invasives ./venv/bin/python -m webapp.manage create-admin admin   # prompts for password"
 echo ""
 echo "3. Set up SSL certificate:"
 echo "   certbot --nginx -d invasives.wildme.org"

@@ -1,6 +1,7 @@
 """
 Email service using Mandrill for sending reports and notifications.
 """
+import html
 import logging
 from typing import Optional
 import requests
@@ -40,6 +41,8 @@ class MandrillEmailService:
             logger.error("MANDRILL_API_KEY not configured")
             return False
 
+        subject = " ".join(subject.split())  # subjects embed user text: no CR/LF
+
         payload = {
             "key": self.api_key,
             "message": {
@@ -50,7 +53,9 @@ class MandrillEmailService:
                 "html": html_content,
                 "text": text_content or self._strip_html(html_content),
                 "track_opens": True,
-                "track_clicks": True,
+                # Click tracking would route bearer links (verify/manage/unsubscribe)
+                # through Mandrill's redirector and logs.
+                "track_clicks": False,
             }
         }
 
@@ -80,11 +85,12 @@ class MandrillEmailService:
     def send_verification_email(self, to_email: str, token: str, region: str, frequency: str = "monthly", taxon_filter: str = None) -> bool:
         """Send email verification link to new subscriber."""
         verify_url = f"{BASE_URL}/verify/{token}"
+        region_html = html.escape(region)
 
-        # Build scope description
-        scope_parts = [f"<strong>{region}</strong>"]
+        # Build scope description (region/taxon_filter are user-entered: escape)
+        scope_parts = [f"<strong>{region_html}</strong>"]
         if taxon_filter:
-            scope_parts.append(f"filtered to <strong>{taxon_filter}</strong>")
+            scope_parts.append(f"filtered to <strong>{html.escape(taxon_filter)}</strong>")
         scope_description = " ".join(scope_parts)
 
         subject = f"Confirm your invasive species report subscription for {region}"
@@ -164,10 +170,10 @@ class MandrillEmailService:
         else:
             subject = f"{freq_label} report: No new species in {scope_description}"
 
-        # Build scope line for email body
-        scope_line = f"<strong>Region:</strong> {region}"
+        # Build scope line for email body (user-entered values: escape)
+        scope_line = f"<strong>Region:</strong> {html.escape(region)}"
         if taxon_filter:
-            scope_line += f" | <strong>Taxon filter:</strong> {taxon_filter}"
+            scope_line += f" | <strong>Taxon filter:</strong> {html.escape(taxon_filter)}"
 
         # Wrap the report HTML with email wrapper
         html_content = f"""
@@ -231,9 +237,9 @@ class MandrillEmailService:
         manage_url = f"{BASE_URL}/manage/{manage_token}"
 
         # Build scope description
-        scope_description = f"<strong>{region}</strong>"
+        scope_description = f"<strong>{html.escape(region)}</strong>"
         if taxon_filter:
-            scope_description += f" (filtered to <strong>{taxon_filter}</strong>)"
+            scope_description += f" (filtered to <strong>{html.escape(taxon_filter)}</strong>)"
 
         subject = f"Subscription confirmed: {region} invasive species reports"
 

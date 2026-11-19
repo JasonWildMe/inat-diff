@@ -12,6 +12,13 @@ ExecStart=/opt/invasives/inat-diff/venv/bin/uvicorn webapp.main:app --host 127.0
 Restart=always
 RestartSec=5
 
+# Hardening: private files, no privilege escalation, read-only OS paths
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+
 # Logging
 StandardOutput=journal
 StandardError=journal

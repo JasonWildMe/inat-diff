@@ -1,7 +1,9 @@
 """
 Configuration settings for the iNat Invasives web application.
 """
+import logging
 import os
+import secrets
 from pathlib import Path
 
 # Base paths
@@ -20,7 +22,12 @@ FROM_EMAIL = os.getenv("FROM_EMAIL", "reports@invasives.wildme.org")
 FROM_NAME = os.getenv("FROM_NAME", "iNaturalist Invasives Monitor")
 
 # Application settings
-SECRET_KEY = os.getenv("SECRET_KEY", "change-this-in-production-to-random-string")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+if not SECRET_KEY or SECRET_KEY == "change-this-in-production-to-random-string":
+    # Never fall back to a publicly known key. A per-process random key keeps
+    # the app working (CSRF tokens just don't survive a restart).
+    logging.getLogger(__name__).warning("SECRET_KEY not set; using a random per-process key")
+    SECRET_KEY = secrets.token_hex(32)
 BASE_URL = os.getenv("BASE_URL", "https://invasives.wildme.org")
 
 # Prosopo Procaptcha (bot protection)
@@ -35,30 +42,7 @@ REPORT_STORAGE_DIR = BASE_DIR / "reports"
 # Ensure report directory exists
 REPORT_STORAGE_DIR.mkdir(exist_ok=True)
 
-# Celery Beat schedule (monthly reports)
-CELERY_BEAT_SCHEDULE = {
-    'generate-monthly-reports': {
-        'task': 'webapp.tasks.generate_scheduled_reports',
-        'schedule': {
-            'day_of_month': 1,  # First day of each month
-            'hour': 6,
-            'minute': 0,
-        },
-    },
-    'generate-weekly-reports': {
-        'task': 'webapp.tasks.generate_scheduled_reports',
-        'schedule': {
-            'day_of_week': 0,  # Monday
-            'hour': 6,
-            'minute': 0,
-        },
-        'kwargs': {'frequency': 'weekly'},
-    },
-}
-
-# Rate limiting for web form submissions
-MAX_SUBSCRIPTIONS_PER_EMAIL = 10
-MAX_SUBSCRIPTIONS_PER_DAY = 50
+# Celery Beat schedule lives in webapp/celery_config.py (the one actually loaded).
 
 # Token expiry for magic links
 MAGIC_LINK_EXPIRY_HOURS = 48

@@ -3,7 +3,7 @@ Authentication utilities for admin dashboard.
 """
 import logging
 import bcrypt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,13 @@ from webapp.models import get_db, AdminUser
 
 logger = logging.getLogger(__name__)
 security = HTTPBasic()
+
+# Header the admin dashboard sends on every state-changing request.
+ADMIN_CSRF_HEADER = "X-Requested-With"
+ADMIN_CSRF_VALUE = "invasives-admin"
+
+# Compared against when the username is unknown, so both failure paths cost a bcrypt check.
+_DUMMY_HASH = bcrypt.hashpw(b"dummy-password", bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 
 def hash_password(password: str) -> str:
@@ -48,6 +55,7 @@ def get_current_admin(
     ).first()
 
     if not admin:
+        verify_password(credentials.password, _DUMMY_HASH)  # equalize timing
         logger.warning(f"Failed login attempt: unknown user '{credentials.username}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -66,6 +74,19 @@ def get_current_admin(
 
     logger.info(f"Successful admin login: {credentials.username}")
     return admin
+
+
+def require_admin_csrf_header(request: Request) -> None:
+    """
+    CSRF guard for admin POST routes.
+
+    Browsers re-send cached HTTP Basic credentials on cross-site requests, so a
+    forged form POST would be authenticated. A cross-site form cannot set custom
+    headers, and a cross-origin fetch with one needs a CORS preflight this app
+    never approves, so requiring the header blocks forged requests.
+    """
+    if request.headers.get(ADMIN_CSRF_HEADER) != ADMIN_CSRF_VALUE:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing CSRF header")
 
 
 def create_admin_user(db: Session, username: str, password: str) -> AdminUser:

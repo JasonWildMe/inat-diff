@@ -3,14 +3,16 @@
 Management commands for iNaturalist Invasives Monitor.
 
 Usage:
-    python -m webapp.manage create-admin <username> <password>
+    python -m webapp.manage create-admin <username>      (prompts for password)
     python -m webapp.manage list-admins
     python -m webapp.manage delete-admin <username>
-    python -m webapp.manage reset-password <username> <new-password>
+    python -m webapp.manage reset-password <username>    (prompts for password)
 """
 
 import sys
 import argparse
+import os
+import getpass
 from pathlib import Path
 
 # Add project root to path
@@ -26,7 +28,7 @@ def cmd_create_admin(args):
     db = SessionLocal()
 
     try:
-        admin = create_admin_user(db, args.username, args.password)
+        admin = create_admin_user(db, args.username, args.password or _prompt_password())
         print(f"Admin user '{admin.username}' created successfully.")
         print(f"\nYou can now log in at /admin with these credentials.")
     except ValueError as e:
@@ -46,7 +48,7 @@ def cmd_list_admins(args):
 
         if not admins:
             print("No admin users found.")
-            print("\nCreate one with: python -m webapp.manage create-admin <username> <password>")
+            print("\nCreate one with: python -m webapp.manage create-admin <username>")
             return
 
         print(f"Admin users ({len(admins)}):")
@@ -99,14 +101,27 @@ def cmd_reset_password(args):
             print(f"Error: Admin user '{args.username}' not found.")
             sys.exit(1)
 
-        admin.password_hash = hash_password(args.password)
+        admin.password_hash = hash_password(args.password or _prompt_password())
         db.commit()
         print(f"Password reset for '{args.username}'.")
     finally:
         db.close()
 
 
+def _prompt_password() -> str:
+    """Prompt for a password so it never lands in shell history or `ps` output."""
+    password = getpass.getpass("Password: ")
+    if len(password) < 12:
+        print("Error: password must be at least 12 characters.")
+        sys.exit(1)
+    if getpass.getpass("Confirm password: ") != password:
+        print("Error: passwords do not match.")
+        sys.exit(1)
+    return password
+
+
 def main():
+    os.umask(0o077)  # if this command creates the SQLite DB, keep it private
     parser = argparse.ArgumentParser(
         description="iNaturalist Invasives Monitor Management"
     )
@@ -115,7 +130,7 @@ def main():
     # create-admin
     create_parser = subparsers.add_parser("create-admin", help="Create a new admin user")
     create_parser.add_argument("username", help="Admin username")
-    create_parser.add_argument("password", help="Admin password")
+    create_parser.add_argument("password", nargs="?", help="Admin password (omit to be prompted; recommended)")
 
     # list-admins
     subparsers.add_parser("list-admins", help="List all admin users")
@@ -127,7 +142,7 @@ def main():
     # reset-password
     reset_parser = subparsers.add_parser("reset-password", help="Reset admin password")
     reset_parser.add_argument("username", help="Admin username")
-    reset_parser.add_argument("password", help="New password")
+    reset_parser.add_argument("password", nargs="?", help="New password (omit to be prompted; recommended)")
 
     args = parser.parse_args()
 

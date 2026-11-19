@@ -171,6 +171,20 @@ class Token(Base):
         return f"<Token {self.token_type}: {self.token[:8]}...>"
 
 
+def get_or_create_token(db, subscription_id: int, token_type: str, days: int = 365) -> "Token":
+    """Return an existing long-lived token of this type, or issue one (manage/unsubscribe links)."""
+    token = db.query(Token).filter(
+        Token.subscription_id == subscription_id,
+        Token.token_type == token_type
+    ).order_by(Token.expires_at.desc()).first()
+    if token is None or (token_type != "unsubscribe" and not token.is_valid):
+        token = Token.generate(subscription_id, token_type)
+        token.expires_at = datetime.utcnow() + timedelta(days=days)
+        db.add(token)
+        db.commit()
+    return token
+
+
 class AdminUser(Base):
     """Admin users for the dashboard."""
     __tablename__ = "admin_users"
