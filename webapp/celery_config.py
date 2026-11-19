@@ -25,6 +25,11 @@ beat_schedule = {
         ),
         'kwargs': {'frequency': 'weekly'},
     },
+    # Spread maps - queue due county first-detection rebuilds nightly at 00:30 UTC
+    'dispatch-spread-syncs': {
+        'task': 'webapp.spread_tasks.dispatch_spread_syncs',
+        'schedule': crontab(minute=30, hour=0),
+    },
 }
 
 # Apply configuration

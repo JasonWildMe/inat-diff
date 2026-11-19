@@ -7,6 +7,9 @@ Usage:
     python -m webapp.manage list-admins
     python -m webapp.manage delete-admin <username>
     python -m webapp.manage reset-password <username>    (prompts for password)
+    python -m webapp.manage add-species <inat_taxon_id> [--gbif-key N] [--eddmaps-subject N]
+    python -m webapp.manage list-species
+    python -m webapp.manage sync-species <inat_taxon_id>    (queue rebuilds now)
 """
 
 import sys
@@ -108,6 +111,81 @@ def cmd_reset_password(args):
         db.close()
 
 
+def cmd_add_species(args):
+    """Track a species' spread: resolve its GBIF and EDDMapS ids and create sync rows."""
+    from inat_diff import iNatClient
+    from webapp.models import TrackedSpecies, SourceSync, SpreadSource
+    from webapp import spread_sources
+
+    init_db()
+    db = SessionLocal()
+    try:
+        if db.query(TrackedSpecies).filter_by(inat_taxon_id=args.taxon_id).first():
+            print(f"Taxon {args.taxon_id} is already tracked.")
+            return
+        results = iNatClient()._make_request(f"taxa/{args.taxon_id}").get("results") or []
+        if not results:
+            print(f"Error: iNaturalist taxon {args.taxon_id} not found.")
+            sys.exit(1)
+        taxon = results[0]
+        name = taxon.get("name")
+        print(f"iNaturalist taxon {args.taxon_id}: {name} ({taxon.get('preferred_common_name') or 'no common name'}), rank {taxon.get('rank')}")
+
+        gbif = args.gbif_key if args.gbif_key is not None else spread_sources.resolve_gbif_key(name)
+        edd = args.eddmaps_subject if args.eddmaps_subject is not None else spread_sources.resolve_eddmaps_subject(name)
+        print(f"  GBIF taxon key: {gbif if gbif is not None else 'not found (pass --gbif-key)'}")
+        print(f"  EDDMapS subject: {edd if edd is not None else 'not found (pass --eddmaps-subject)'}")
+
+        species = TrackedSpecies(inat_taxon_id=args.taxon_id, gbif_taxon_key=gbif, eddmaps_subject_id=edd,
+                                 scientific_name=name, common_name=taxon.get("preferred_common_name"))
+        species.syncs = [SourceSync(source=s) for s in SpreadSource]
+        db.add(species)
+        db.commit()
+        print("Tracked. The nightly dispatcher will build it, or run: "
+              f"python -m webapp.manage sync-species {args.taxon_id}")
+    finally:
+        db.close()
+
+
+def cmd_list_species(args):
+    """List tracked species and the state of each source."""
+    from webapp.models import TrackedSpecies
+
+    init_db()
+    db = SessionLocal()
+    try:
+        for sp in db.query(TrackedSpecies).order_by(TrackedSpecies.scientific_name):
+            print(f"{sp.inat_taxon_id:>9}  {sp.scientific_name} ({sp.common_name or '-'})"
+                  f"{'' if sp.is_active else '  [inactive]'}")
+            for s in sorted(sp.syncs, key=lambda s: s.source.value):
+                ok = s.last_success_at.strftime('%Y-%m-%d %H:%M') if s.last_success_at else 'never'
+                err = f"  error: {s.error_message[:80]}" if s.error_message else ""
+                print(f"           {s.source.value:<8} {s.status.value:<8} last ok {ok}  "
+                      f"counties {s.counties if s.counties is not None else '-'}{err}")
+    finally:
+        db.close()
+
+
+def cmd_sync_species(args):
+    """Queue an immediate rebuild of every linked source for one species."""
+    from webapp.models import TrackedSpecies
+    from webapp.spread_tasks import sync_species_source
+
+    init_db()
+    db = SessionLocal()
+    try:
+        sp = db.query(TrackedSpecies).filter_by(inat_taxon_id=args.taxon_id).first()
+        if not sp:
+            print(f"Error: taxon {args.taxon_id} is not tracked (use add-species).")
+            sys.exit(1)
+        for s in sp.syncs:
+            if sp.source_id(s.source) is not None:
+                sync_species_source.delay(sp.id, s.source.value, force=True)
+                print(f"Queued {s.source.value}")
+    finally:
+        db.close()
+
+
 def _prompt_password() -> str:
     """Prompt for a password so it never lands in shell history or `ps` output."""
     password = getpass.getpass("Password: ")
@@ -144,6 +222,14 @@ def main():
     reset_parser.add_argument("username", help="Admin username")
     reset_parser.add_argument("password", nargs="?", help="New password (omit to be prompted; recommended)")
 
+    add_sp = subparsers.add_parser("add-species", help="Track a species' county spread")
+    add_sp.add_argument("taxon_id", type=int, help="iNaturalist taxon id")
+    add_sp.add_argument("--gbif-key", type=int, help="GBIF taxon key (skips lookup)")
+    add_sp.add_argument("--eddmaps-subject", type=int, help="EDDMapS subject id (skips lookup)")
+    subparsers.add_parser("list-species", help="List tracked species and sync state")
+    sync_sp = subparsers.add_parser("sync-species", help="Queue spread rebuilds for a species now")
+    sync_sp.add_argument("taxon_id", type=int, help="iNaturalist taxon id")
+
     args = parser.parse_args()
 
     if args.command == "create-admin":
@@ -154,6 +240,12 @@ def main():
         cmd_delete_admin(args)
     elif args.command == "reset-password":
         cmd_reset_password(args)
+    elif args.command == "add-species":
+        cmd_add_species(args)
+    elif args.command == "list-species":
+        cmd_list_species(args)
+    elif args.command == "sync-species":
+        cmd_sync_species(args)
     else:
         parser.print_help()
         sys.exit(1)

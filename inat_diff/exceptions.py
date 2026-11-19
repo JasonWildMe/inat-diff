@@ -2,8 +2,15 @@
 
 
 class iNatAPIError(Exception):
-    """Base exception for iNaturalist API errors."""
-    pass
+    """Base exception for iNaturalist API errors.
+
+    status_code / retry_after are set when the failure was an HTTP response.
+    """
+
+    def __init__(self, message: str = "", status_code=None, retry_after=None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.retry_after = retry_after
 
 
 class PlaceNotFoundError(iNatAPIError):

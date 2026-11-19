@@ -110,6 +110,7 @@ echo "=== Installing systemd services ==="
 # Copy service files
 cp /opt/invasives/inat-diff/webapp/deploy/invasives-web.service /etc/systemd/system/
 cp /opt/invasives/inat-diff/webapp/deploy/invasives-worker.service /etc/systemd/system/
+cp /opt/invasives/inat-diff/webapp/deploy/invasives-spread-worker.service /etc/systemd/system/
 cp /opt/invasives/inat-diff/webapp/deploy/invasives-beat.service /etc/systemd/system/
 
 # Reload systemd
@@ -118,6 +119,7 @@ systemctl daemon-reload
 # Enable services
 systemctl enable invasives-web
 systemctl enable invasives-worker
+systemctl enable invasives-spread-worker
 systemctl enable invasives-beat
 systemctl enable redis-server
 
@@ -147,6 +149,7 @@ echo "4. Start services:"
 echo "   systemctl start redis-server"
 echo "   systemctl start invasives-web"
 echo "   systemctl start invasives-worker"
+echo "   systemctl start invasives-spread-worker"
 echo "   systemctl start invasives-beat"
 echo "   systemctl restart nginx"
 echo ""

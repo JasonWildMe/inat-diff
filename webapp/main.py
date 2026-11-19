@@ -37,6 +37,7 @@ from webapp.csrf import generate_csrf_token, validate_csrf_token
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from inat_diff import iNatClient
+from webapp.inat_pacer import count_web_request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -131,7 +132,7 @@ def places_autocomplete(request: Request, q: str = ""):
     if len(q) < 2 or len(q) > 100:
         return {"results": []}
 
-    client = iNatClient()
+    client = iNatClient(before_request=count_web_request)
     try:
         # Search for places matching the query
         # search_places returns a list directly, not a dict
@@ -164,7 +165,7 @@ def taxa_autocomplete(request: Request, q: str = ""):
     if len(q) < 2 or len(q) > 100:
         return {"results": []}
 
-    client = iNatClient()
+    client = iNatClient(before_request=count_web_request)
     try:
         # Search for taxa matching the query
         results = client.search_taxa(q)
@@ -298,7 +299,7 @@ def create_subscription(
         )
 
     # Validate region by resolving with iNaturalist
-    client = iNatClient()
+    client = iNatClient(before_request=count_web_request)
     resolved_place_id = None
     place_info = {}
 

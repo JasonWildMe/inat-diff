@@ -21,8 +21,9 @@ from webapp.models import SessionLocal, Subscription, Report, Token, ReportStatu
 from webapp.email_service import email_service
 
 # Import the inat_diff library
-from inat_diff import SpeciesQuery
+from inat_diff import SpeciesQuery, iNatClient
 from inat_diff.visualize import generate_html
+from webapp.inat_pacer import make_worker_pacer
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,8 @@ TASK_TIME_LIMIT = 7200  # seconds
 celery_app = Celery(
     'webapp.tasks',
     broker=REDIS_URL,
-    backend=REDIS_URL
+    backend=REDIS_URL,
+    include=['webapp.spread_tasks'],
 )
 
 celery_app.conf.update(
@@ -44,6 +46,11 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=TASK_TIME_LIMIT,  # 2 hour hard limit
     task_soft_time_limit=6600,  # 1 hour 50 min soft limit
+    # Long spread rebuilds get their own queue/worker so they never delay reports.
+    task_routes={'webapp.spread_tasks.*': {'queue': 'spread'}},
+    # A reserved message waiting behind a long task must not be redelivered as a
+    # duplicate: Redis redelivers unacked messages after this timeout (default 1 h).
+    broker_transport_options={'visibility_timeout': TASK_TIME_LIMIT + 3600},
 )
 
 # A RUNNING report older than the hard time limit (+ grace) belongs to a dead worker.
@@ -116,8 +123,9 @@ def generate_report_task(self, report_id: int):
 
         logger.info(f"Generating report {report_id} for {subscription.region}")
 
-        # Initialize query
-        query = SpeciesQuery()
+        # Initialize query; all iNat calls share the host-wide request gate
+        inat = iNatClient(before_request=make_worker_pacer())
+        query = SpeciesQuery(client=inat)
 
         # Query exactly the stored period (inclusive dates), not "last N days"
         # relative to whenever this task happens to run or retry.
@@ -157,7 +165,7 @@ def generate_report_task(self, report_id: int):
         html_filename = f"{report.report_uuid}.html"
         html_path = REPORT_STORAGE_DIR / html_filename
 
-        report_html = generate_html(results, include_quality=True, rate_limit=DEFAULT_RATE_LIMIT)
+        report_html = generate_html(results, include_quality=True, rate_limit=DEFAULT_RATE_LIMIT, client=inat)
         with open(html_path, 'w') as f:
             f.write(report_html)
 

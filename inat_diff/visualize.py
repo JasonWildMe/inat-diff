@@ -12,6 +12,8 @@ from typing import Any, Dict, Iterable, Optional
 
 import requests
 
+from inat_diff.exceptions import iNatAPIError
+
 
 API_BASE_URL = "https://api.inaturalist.org/v1/observations"
 QUALITY_PRIORITY = ("research", "needs_id", "casual")
@@ -263,8 +265,10 @@ def _normalize_int(value: Any) -> Optional[int]:
 
 
 @lru_cache(maxsize=512)
-def _fetch_highest_quality_grade(taxon_id: int, place_id: Optional[int]) -> tuple[Optional[str], Optional[str]]:
+def _fetch_highest_quality_grade(taxon_id: int, place_id: Optional[int], client=None) -> tuple[Optional[str], Optional[str]]:
     """Return highest available observation quality grade for a taxon.
+
+    client: optional iNatClient (e.g. one with shared pacing); defaults to plain requests.
 
     Returns:
         Tuple of (grade, error_message) where:
@@ -284,11 +288,14 @@ def _fetch_highest_quality_grade(taxon_id: int, place_id: Optional[int]) -> tupl
 
         for attempt in range(max_retries):
             try:
-                response = requests.get(
-                    API_BASE_URL, params=params, timeout=REQUEST_TIMEOUT, headers={"User-Agent": "inat-diff-visualize"}
-                )
-                response.raise_for_status()
-                payload = response.json()
+                if client is not None:
+                    payload = client.get_observations(**params)
+                else:
+                    response = requests.get(
+                        API_BASE_URL, params=params, timeout=REQUEST_TIMEOUT, headers={"User-Agent": "inat-diff-visualize"}
+                    )
+                    response.raise_for_status()
+                    payload = response.json()
 
                 # Success - check if this grade has results
                 if payload.get("total_results"):
@@ -306,12 +313,20 @@ def _fetch_highest_quality_grade(taxon_id: int, place_id: Optional[int]) -> tupl
             except (ValueError, KeyError) as e:
                 # JSON parsing error - don't retry
                 return (None, f"Invalid API response: {str(e)}")
+            except iNatAPIError as e:
+                # Client errors, including shared-pacing failures, cost one species its
+                # label, never the whole report. (Celery time limits are not caught.)
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (2 ** attempt))
+                    continue
+                return (None, f"API error: {str(e)}")
 
     # No observations found for any quality grade
     return (None, None)
 
 
-def annotate_species_with_quality(species_list: Iterable[Dict[str, Any]], place_id: Any, rate_limit: float = 1.2) -> None:
+def annotate_species_with_quality(species_list: Iterable[Dict[str, Any]], place_id: Any, rate_limit: float = 1.2,
+                                  client=None) -> None:
     """Augment each species dict with its highest observation quality label.
 
     Note: This function modifies the species dictionaries in-place by adding a
@@ -337,7 +352,7 @@ def annotate_species_with_quality(species_list: Iterable[Dict[str, Any]], place_
             species["highest_quality_grade_label"] = "Unknown"
             continue
 
-        grade_key, error_msg = _fetch_highest_quality_grade(taxon_id, normalized_place_id)
+        grade_key, error_msg = _fetch_highest_quality_grade(taxon_id, normalized_place_id, client)
 
         if error_msg:
             # API call failed
@@ -443,7 +458,8 @@ def format_species_item(species: Dict[str, Any], query: Dict[str, Any], is_new: 
         </tr>"""
 
 
-def generate_new_species_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2) -> str:
+def generate_new_species_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2,
+                              client=None) -> str:
     """Generate HTML for new-species command output."""
     query = data.get("query", {})
     region = escape(str(query.get("region") or "Unknown Region"))
@@ -496,7 +512,7 @@ def generate_new_species_html(data: Dict[str, Any], include_quality: bool = Fals
     new_species_html = ""
     if new_species:
         if include_quality:
-            annotate_species_with_quality(new_species, query.get("place_id"), rate_limit=rate_limit)
+            annotate_species_with_quality(new_species, query.get("place_id"), rate_limit=rate_limit, client=client)
             # Sort by quality grade (Research Grade first)
             new_species = sort_species_by_quality(new_species)
         species_rows = [format_species_item(sp, query, is_new=True) for sp in new_species]
@@ -524,7 +540,8 @@ def generate_new_species_html(data: Dict[str, Any], include_quality: bool = Fals
     return HTML_TEMPLATE.format(title=title, content=content, current_year=datetime.now().year)
 
 
-def generate_list_species_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2) -> str:
+def generate_list_species_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2,
+                               client=None) -> str:
     """Generate HTML for list-species command output."""
     query = data.get("query", {})
     region = escape(str(query.get("region") or "Unknown Region"))
@@ -566,7 +583,7 @@ def generate_list_species_html(data: Dict[str, Any], include_quality: bool = Fal
     species_html = ""
     if species:
         if include_quality:
-            annotate_species_with_quality(species, query.get("place_id"), rate_limit=rate_limit)
+            annotate_species_with_quality(species, query.get("place_id"), rate_limit=rate_limit, client=client)
             # Sort by quality grade (Research Grade first)
             species = sort_species_by_quality(species)
         species_rows = [format_species_item(sp, query, is_new=False) for sp in species]
@@ -652,13 +669,14 @@ def generate_query_html(data: Dict[str, Any]) -> str:
     return HTML_TEMPLATE.format(title=title, content=content, current_year=datetime.now().year)
 
 
-def generate_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2) -> str:
+def generate_html(data: Dict[str, Any], include_quality: bool = False, rate_limit: float = 1.2,
+                  client=None) -> str:
     """Generate HTML based on the type of query results."""
     # Detect result type based on fields present
     if "new_species_count" in data:
-        return generate_new_species_html(data, include_quality=include_quality, rate_limit=rate_limit)
+        return generate_new_species_html(data, include_quality=include_quality, rate_limit=rate_limit, client=client)
     elif "species_count" in data and "species" in data:
-        return generate_list_species_html(data, include_quality=include_quality, rate_limit=rate_limit)
+        return generate_list_species_html(data, include_quality=include_quality, rate_limit=rate_limit, client=client)
     elif "query" in data and "taxon_name" in data.get("query", {}):
         return generate_query_html(data)
     else:

@@ -1,0 +1,31 @@
+[Unit]
+Description=iNaturalist Invasives Monitor Spread-Map Worker
+After=network.target redis-server.service
+
+[Service]
+Type=simple
+User=invasives
+Group=invasives
+WorkingDirectory=/opt/invasives/inat-diff
+EnvironmentFile=/opt/invasives/.env
+ExecStart=/opt/invasives/inat-diff/venv/bin/celery -A webapp.tasks worker -Q spread -n spread@%%h --loglevel=info --concurrency=1 --prefetch-multiplier=1
+Restart=always
+RestartSec=10
+
+# Hardening: private files, no privilege escalation, read-only OS paths
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=invasives-spread-worker
+
+# Allow long-running tasks (a species rebuild can take over an hour)
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target

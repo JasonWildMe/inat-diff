@@ -1,7 +1,7 @@
 """Core API client for iNaturalist."""
 
 import requests
-from typing import Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any
 from .exceptions import iNatAPIError, PlaceNotFoundError, TaxonNotFoundError
 
 
@@ -11,8 +11,16 @@ class iNatClient:
     BASE_URL = "https://api.inaturalist.org/v1"
     TIMEOUT = (10, 60)  # (connect, read) seconds; never block forever on the API
 
-    def __init__(self, user_agent: str = "inat-diff/0.1.0"):
-        """Initialize the client with optional user agent."""
+    def __init__(self, user_agent: str = "inat-diff/0.1.0", base_url: Optional[str] = None,
+                 before_request: Optional[Callable[[], None]] = None):
+        """Initialize the client.
+
+        base_url: override the API root (e.g. "https://api.inaturalist.org/v2").
+        before_request: called before every HTTP request (shared pacing / budgets);
+            it may raise to stop the request.
+        """
+        self.base_url = base_url or self.BASE_URL
+        self.before_request = before_request
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": user_agent,
@@ -21,13 +29,20 @@ class iNatClient:
 
     def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         """Make a request to the iNaturalist API."""
-        url = f"{self.BASE_URL}/{endpoint}"
+        url = f"{self.base_url}/{endpoint}"
+        if self.before_request is not None:
+            self.before_request()
         try:
             response = self.session.get(url, params=params or {}, timeout=self.TIMEOUT)
             response.raise_for_status()
             return response.json()
         except (requests.RequestException, ValueError) as e:
-            raise iNatAPIError(f"API request failed: {e}") from e
+            resp = getattr(e, "response", None)
+            raise iNatAPIError(
+                f"API request failed: {e}",
+                status_code=getattr(resp, "status_code", None),
+                retry_after=resp.headers.get("Retry-After") if resp is not None else None,
+            ) from e
 
     def search_places(self, query: str, place_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """Search for places by name."""

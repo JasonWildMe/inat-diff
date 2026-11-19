@@ -39,6 +39,14 @@ DEFAULT_LOOKBACK_YEARS = 20
 DEFAULT_RATE_LIMIT = 1.2  # seconds between iNaturalist API calls
 REPORT_STORAGE_DIR = BASE_DIR / "reports"
 
+# Shared iNaturalist request gate (webapp/inat_pacer.py)
+INAT_WORKER_INTERVAL = float(os.getenv("INAT_WORKER_INTERVAL", "1.5"))  # s between worker requests, all processes
+INAT_DAILY_REQUEST_CAP = int(os.getenv("INAT_DAILY_REQUEST_CAP", "8000"))  # spread syncs stop here; iNat asks <~10k/day
+
+# Spread (county first-detection) syncs
+SPREAD_REFRESH_DAYS = int(os.getenv("SPREAD_REFRESH_DAYS", "7"))
+SPREAD_MAX_INAT_PAGES = int(os.getenv("SPREAD_MAX_INAT_PAGES", "1500"))  # ~75 min at the observed ~3 s/page
+
 # Ensure report directory exists
 REPORT_STORAGE_DIR.mkdir(exist_ok=True)
 

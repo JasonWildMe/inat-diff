@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, ForeignKey, Enum as SQLEnum
+from sqlalchemy import (create_engine, Column, Integer, String, Date, DateTime, Boolean, Text, ForeignKey,
+                        UniqueConstraint, Enum as SQLEnum)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
@@ -183,6 +184,75 @@ def get_or_create_token(db, subscription_id: int, token_type: str, days: int = 3
         db.add(token)
         db.commit()
     return token
+
+
+class SpreadSource(str, Enum):
+    INAT = "inat"
+    GBIF = "gbif"
+    EDDMAPS = "eddmaps"
+
+
+class SyncStatus(str, Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+    FAILED = "failed"
+
+
+class TrackedSpecies(Base):
+    """A species whose spread (first detection per US county) is tracked."""
+    __tablename__ = "tracked_species"
+
+    id = Column(Integer, primary_key=True)
+    inat_taxon_id = Column(Integer, unique=True, nullable=False)
+    gbif_taxon_key = Column(Integer, nullable=True)
+    eddmaps_subject_id = Column(Integer, nullable=True)
+    scientific_name = Column(String(255), nullable=False)
+    common_name = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    syncs = relationship("SourceSync", back_populates="species", cascade="all, delete-orphan")
+
+    def source_id(self, source: "SpreadSource") -> Optional[int]:
+        """The id this species has at a source, or None if not linked there."""
+        return {
+            SpreadSource.INAT: self.inat_taxon_id,
+            SpreadSource.GBIF: self.gbif_taxon_key,
+            SpreadSource.EDDMAPS: self.eddmaps_subject_id,
+        }[SpreadSource(source)]
+
+
+class SourceSync(Base):
+    """Rebuild state for one (species, source); also the run's concurrency claim."""
+    __tablename__ = "source_sync"
+    __table_args__ = (UniqueConstraint("species_id", "source", name="uq_source_sync"),)
+
+    id = Column(Integer, primary_key=True)
+    species_id = Column(Integer, ForeignKey("tracked_species.id"), nullable=False)
+    source = Column(SQLEnum(SpreadSource), nullable=False)
+    status = Column(SQLEnum(SyncStatus), default=SyncStatus.IDLE, nullable=False)
+    claim_started_at = Column(DateTime, nullable=True)
+    last_success_at = Column(DateTime, nullable=True)
+    last_attempt_at = Column(DateTime, nullable=True)
+    error_message = Column(Text, nullable=True)
+    records_seen = Column(Integer, nullable=True)
+    counties = Column(Integer, nullable=True)
+
+    species = relationship("TrackedSpecies", back_populates="syncs")
+
+
+class CountyDetection(Base):
+    """Earliest eligible sighting of a species in a county, per source.
+
+    The map's first detection for a county is the MIN(first_date) over sources.
+    """
+    __tablename__ = "county_detection"
+
+    species_id = Column(Integer, ForeignKey("tracked_species.id"), primary_key=True)
+    fips = Column(String(5), primary_key=True)
+    source = Column(SQLEnum(SpreadSource), primary_key=True)
+    first_date = Column(Date, nullable=False)
+    first_record_id = Column(String(64), nullable=False)
 
 
 class AdminUser(Base):
