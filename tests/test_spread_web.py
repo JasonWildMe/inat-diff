@@ -205,3 +205,14 @@ def test_large_stored_taxon_id_is_reachable():
         assert client.get(f"/spread/{2**31}").status_code == 200
     finally:
         db.delete(sp); db.commit(); db.close()
+
+
+def _nav_current(html):
+    return re.findall(r'<a href="([^"]+)" aria-current="(page|true)"', html)
+
+
+def test_site_nav_marks_current_section(species):
+    landing = client.get("/").text
+    assert 'href="/spread"' in landing and _nav_current(landing) == [("/", "page")]
+    assert _nav_current(client.get("/spread").text) == [("/spread", "page")]
+    assert _nav_current(client.get(f"/spread/{species}").text) == [("/spread", "true")]

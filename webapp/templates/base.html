@@ -60,6 +60,69 @@
             }
         }
 
+        .sitenav {
+            background: #fff;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .sitenav ul {
+            list-style: none;
+            margin: 0 auto;
+            padding: 0 20px;
+            max-width: 800px;
+            display: flex;
+            gap: 4px;
+        }
+
+        .sitenav li {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .sitenav a {
+            display: block;
+            padding: 12px 14px 10px;
+            border-bottom: 3px solid transparent;
+            color: #333;
+            text-decoration: none;
+            line-height: 1.3;
+        }
+
+        .sitenav a:hover {
+            background: #f5f9ec;
+        }
+
+        .sitenav a:focus-visible {
+            outline: 2px solid #74ac00;
+            outline-offset: -2px;
+        }
+
+        .sitenav a[aria-current] {
+            border-bottom-color: #74ac00;
+        }
+
+        .sitenav b {
+            display: block;
+            font-size: 1.05em;
+        }
+
+        .sitenav small {
+            display: block;
+            color: #666;
+            font-size: 0.85em;
+        }
+
+        @media (max-width: 600px) {
+            .sitenav ul {
+                padding: 0 10px;
+            }
+
+            .sitenav a {
+                padding: 10px 8px 8px;
+                text-align: center;
+            }
+        }
+
         .container {
             max-width: 800px;
             margin: 0 auto;
@@ -233,9 +296,22 @@
         <img src="/static/Wild Me_white.png" alt="Wild Me" class="header-logo">
         <div class="header-text">
             <h1>iNaturalist Invasives Monitor</h1>
-            <p>Leverage iNaturalist to identify new species appearing in your area.</p>
+            <p>Early detection and spread tracking for invasive species.</p>
         </div>
     </div>
+
+    {% set path = request.url.path %}
+    {% set in_spread = path == "/spread" or path.startswith("/spread/") %}
+    <nav class="sitenav" aria-label="Site sections">
+        <ul>
+            <li><a href="/"{% if path == "/" %} aria-current="page"{% endif %}>
+                <b>Email alerts</b>
+                <small>New species reported in your area</small></a></li>
+            <li><a href="/spread"{% if in_spread %} aria-current="{{ 'page' if path == '/spread' else 'true' }}"{% endif %}>
+                <b>Spread maps</b>
+                <small>Where tracked invasives have been recorded</small></a></li>
+        </ul>
+    </nav>
 
     <div class="container">
         {% block content %}{% endblock %}
