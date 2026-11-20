@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Request, Depends, HTTPException, Form, Response
+from fastapi import Path as PathParam
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -38,6 +39,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from inat_diff import iNatClient
 from webapp.inat_pacer import count_web_request
+from webapp import spread_view
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -67,6 +69,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+templates.env.globals["current_year"] = lambda: datetime.utcnow().year
+templates.env.globals["asset_url"] = spread_view.asset_url
 
 
 # =============================================================================
@@ -88,6 +92,13 @@ async def add_security_headers(request: Request, call_next):
         response.headers["Content-Security-Policy"] = (
             "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; "
             "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        )
+    elif request.url.path == "/spread" or request.url.path.startswith("/spread/"):
+        # Spread pages load only same-origin scripts; data is embedded as inert JSON.
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; connect-src 'self'; base-uri 'none'; "
+            "form-action 'self'; frame-ancestors 'none'"
         )
     # Only add HSTS in production (when using HTTPS)
     if request.url.scheme == "https":
@@ -225,6 +236,26 @@ def verify_procaptcha(token: str) -> bool:
     except Exception as e:
         logger.error(f"Procaptcha verification error: {e}")
         return False
+
+
+@app.get("/spread", response_class=HTMLResponse)
+@limiter.limit("60/minute")
+def spread_index(request: Request, db: Session = Depends(get_db)):
+    """List of species with a county spread map."""
+    return templates.TemplateResponse(request, "spread_index.html", {
+        "species": spread_view.species_list(db)})
+
+
+@app.get("/spread/{inat_taxon_id}", response_class=HTMLResponse)
+@limiter.limit("60/minute")
+def spread_map(request: Request, inat_taxon_id: int = PathParam(ge=1, le=2**63 - 1),
+               db: Session = Depends(get_db)):
+    """Cumulative first detections by county for one tracked species."""
+    species = spread_view.active_species(db, inat_taxon_id)
+    if species is None:
+        raise HTTPException(status_code=404, detail="Species not found")
+    return templates.TemplateResponse(request, "spread.html", {
+        "payload": spread_view.species_payload(db, species)})
 
 
 @app.post("/subscribe")

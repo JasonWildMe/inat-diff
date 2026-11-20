@@ -243,14 +243,15 @@
 
     <div class="footer">
         <p>
-            Data from <a href="https://www.inaturalist.org" target="_blank">iNaturalist</a> |
+            {% block data_credit %}Data from <a href="https://www.inaturalist.org" target="_blank" rel="noopener">iNaturalist</a>{% endblock %} |
+            <a href="/spread">Spread maps</a> |
             <a href="https://conservationxlabs.com" target="_blank">Wild Me by Conservation X Labs</a>
         </p>
         <p>
             <a href="/static/CXL-Terms-of-Use-20250514.pdf" target="_blank">Terms of Use</a> |
             <a href="/static/CXL-Privacy-Policy-20250514.pdf" target="_blank">Privacy Policy</a>
         </p>
-        <p>&copy; <script>document.write(new Date().getFullYear())</script> Conservation X Labs</p>
+        <p>&copy; {{ current_year() }} Conservation X Labs</p>
     </div>
 
     {% block extra_js %}{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% set sp = payload.species %}
+
+{% block title %}{{ sp.common_name or sp.scientific_name }} spread - iNaturalist Invasives Monitor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .container { max-width: 1120px; }
+    .spread { --land: #e9ece5; --edge: #ffffff; --state: #9aa396; --new: #d9531e;
+              --muted: #5b6159; --line: #dde1da; --accent: #2a6fbe; }
+    .spread .eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+    .spread h2 { margin: 4px 0 6px; }
+    .spread .lede { color: var(--muted); max-width: 70ch; margin: 0; }
+    .spread .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin: 18px 0 10px; }
+    .spread button.play { font: inherit; font-weight: 600; color: #fff; background: #333; border: 0; border-radius: 4px; padding: 8px 14px; cursor: pointer; min-width: 80px; }
+    .spread button.play:disabled { opacity: .4; cursor: default; }
+    .spread .slider { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
+    .spread .slider input { flex: 1; min-width: 0; accent-color: #333; }
+    .spread .yr { font: 600 30px/1 ui-monospace, monospace; font-variant-numeric: tabular-nums; min-width: 4ch; }
+    .spread .sources { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
+    .spread .sources label { display: inline-flex; gap: 6px; align-items: baseline; }
+    .spread .sources small { color: var(--muted); }
+    .spread .stats { display: flex; flex-wrap: wrap; gap: 6px 26px; font-size: 13px; color: var(--muted); margin: 6px 0 10px; }
+    .spread .stats b { font: 600 20px ui-monospace, monospace; color: #222; margin-right: 5px; font-variant-numeric: tabular-nums; }
+    .spread .mapbox { position: relative; }
+    .spread svg.map { display: block; width: 100%; height: auto; }
+    .spread .county { fill: var(--land); stroke: var(--edge); stroke-width: .3; cursor: pointer; }
+    .spread .county.new { stroke: var(--new); stroke-width: 1.4; }
+    .spread .county.sel { stroke: #111; stroke-width: 1.6; }
+    .spread .states { fill: none; stroke: var(--state); stroke-width: .6; pointer-events: none; }
+    .spread .tip { position: absolute; pointer-events: none; background: #fff; border: 1px solid #bbb; border-radius: 4px; padding: 6px 9px; font-size: 13px; box-shadow: 0 2px 8px rgb(0 0 0 / .15); white-space: nowrap; }
+    .spread .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; font-size: 12px; color: var(--muted); }
+    .spread .ramp .bar { width: 220px; max-width: 60vw; height: 10px; border-radius: 2px; }
+    .spread .ramp .ticks { display: flex; justify-content: space-between; font-family: ui-monospace, monospace; }
+    .spread .sw { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--new); border-radius: 2px; vertical-align: -2px; margin-right: 6px; }
+    .spread .notice { background: #fff8e1; border: 1px solid #f0d58a; border-radius: 4px; padding: 10px 12px; margin: 10px 0; }
+    .spread .detail { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; min-height: 2.5em; }
+    .spread .detail ul { margin: 6px 0; padding-left: 18px; }
+    .spread .detail .off { color: var(--muted); }
+    .spread .grid2 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; }
+    @media (max-width: 820px) { .spread .grid2 { grid-template-columns: 1fr; } }
+    .spread svg.chart { width: 100%; height: auto; display: block; }
+    .spread .axis text { fill: var(--muted); font: 11px ui-monospace, monospace; }
+    .spread .axis line, .spread .axis path, .spread .gridl line { stroke: var(--line); }
+    .spread .tablewrap { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+    .spread table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 8px; width: 100%; }
+    .spread th, .spread td { text-align: left; padding: 4px 10px; border-bottom: 1px solid var(--line); }
+    .spread td.n, .spread th.n { text-align: right; }
+    .spread summary { cursor: pointer; color: var(--muted); font-size: 14px; margin-top: 10px; }
+    .spread .method li { margin: 4px 0; max-width: 70ch; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="spread">
+    <div class="card">
+        <p class="eyebrow">Spread map &middot; earliest eligible record by county</p>
+        <h2>{% if sp.common_name %}{{ sp.common_name }} (<i>{{ sp.scientific_name }}</i>){% else %}<i>{{ sp.scientific_name }}</i>{% endif %} in the United States</h2>
+        <p class="lede">Each county is shaded by the year of its earliest eligible record from the selected sources,
+            and stays on the map after that. The date is that of the earliest eligible observation,
+            report or specimen from those sources, not when the species arrived.</p>
+
+        <div class="controls">
+            <button class="play" id="play" type="button" disabled>Play</button>
+            <div class="slider">
+                <span class="yr" id="yrlabel">&ndash;</span>
+                <input id="year" type="range" step="1" disabled aria-label="Show counties with a record by this year">
+            </div>
+        </div>
+        <fieldset class="sources" id="sources" style="border:0;padding:0;margin:0">
+            <legend class="eyebrow" style="padding:0;margin-bottom:4px">Sources</legend>
+        </fieldset>
+        <div id="notice" class="notice" hidden></div>
+        <div class="stats" aria-live="polite">
+            <span><b id="stCum">&ndash;</b>counties with a record by <span id="stYr">&ndash;</span></span>
+            <span><b id="stNew">&ndash;</b>new that year</span>
+            <span><b id="stSt">&ndash;</b>states (DC counts as one)</span>
+        </div>
+
+        <div class="mapbox" id="mapbox">
+            <svg class="map" id="map" role="img" aria-label="Map of US counties shaded by year of earliest eligible record"></svg>
+            <div class="tip" id="tip" hidden></div>
+        </div>
+        <div class="legend">
+            <div class="ramp"><div class="bar" id="rampbar"></div>
+                <div class="ticks"><span id="r0"></span><span>Year of first record</span><span id="r1"></span></div></div>
+            <span><span class="sw"></span>First record in the selected year</span>
+            <span>Alaska and Hawaii are inset; territories are not shown.</span>
+        </div>
+        <div class="detail" id="detail" aria-live="polite"><span class="off">Click a county for its first records and links.</span></div>
+    </div>
+
+    <div class="grid2">
+        <div class="card">
+            <h3 style="margin-top:0">Counties with a record, by year</h3>
+            <svg class="chart" id="chart" role="img" aria-label="Cumulative number of counties with an eligible record, by year"></svg>
+            <details>
+                <summary>Show as a table</summary>
+                <div class="tablewrap"><table id="yeartbl"><thead><tr><th>Year</th><th class="n">New counties</th><th class="n">Total</th></tr></thead><tbody></tbody></table></div>
+            </details>
+            <details>
+                <summary>All counties with a record</summary>
+                <div class="tablewrap"><table id="countytbl"><thead><tr><th>County</th><th>First record</th><th>Source</th></tr></thead><tbody></tbody></table></div>
+            </details>
+        </div>
+        <div class="card method">
+            <h3 style="margin-top:0">How this map is built</h3>
+            <ul>
+                <li><b>iNaturalist:</b> research-grade US observations. Records with obscured
+                    locations, or whose location uncertainty could place them in more than one
+                    county, are skipped.</li>
+                <li><b>EDDMapS:</b> reviewed reports with a positive status and a date known to
+                    the day. The county is the one EDDMapS reports. Copies of iNaturalist
+                    records (identified from their metadata) are skipped so they are not
+                    counted twice.</li>
+                <li><b>GBIF:</b> preserved museum specimens only, with a full date, excluding
+                    copies of iNaturalist records.</li>
+                <li>A nightly job rebuilds each source when it is due for refresh. A county's
+                    first record is the earliest date across the sources you select.</li>
+            </ul>
+            <h3>Caveats</h3>
+            <ul>
+                <li><b>Observer effort.</b> Counties with few observers look later than they are.</li>
+                <li><b>Records are not established populations.</b> A single specimen, a dead
+                    insect found in a shipment, or a misidentification can set a county's date.
+                    Click a county to check its records.</li>
+                <li><b>Boundaries.</b> Counties use 2020 Census boundaries.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="spread-data">{{ payload|tojson }}</script>
+{% endblock %}
+
+{% block data_credit %}{% include "_spread_credit.html" %}{% endblock %}
+
+{% block extra_js %}
+<script src="{{ asset_url('spread/vendor/d3.min.js') }}"></script>
+<script src="{{ asset_url('spread/vendor/topojson-client.min.js') }}"></script>
+<script src="{{ asset_url('spread/spread.js') }}" data-topo="{{ asset_url('spread/counties.topo.json') }}"></script>
+{% endblock %}

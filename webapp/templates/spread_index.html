@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Spread maps - iNaturalist Invasives Monitor{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Spread maps</h2>
+    <p>
+        Year-by-year maps of the US counties where an invasive species has been recorded,
+        built from iNaturalist, EDDMapS and GBIF museum specimens. Each county appears in the
+        year of its earliest eligible record and stays on the map after that.
+    </p>
+    {% if species %}
+    <ul>
+        {% for sp in species %}
+        <li>
+            <a href="/spread/{{ sp.inat_taxon_id }}">{{ sp.common_name or sp.scientific_name }}</a>
+            {% if sp.common_name %}(<i>{{ sp.scientific_name }}</i>){% endif %}
+            &mdash;
+            {% if sp.counties is none %}no published data yet
+            {% else %}{{ sp.counties }} {{ "county" if sp.counties == 1 else "counties" }} with a record{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No species are tracked yet.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block data_credit %}{% include "_spread_credit.html" %}{% endblock %}
