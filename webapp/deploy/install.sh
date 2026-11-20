@@ -124,7 +124,13 @@ systemctl enable invasives-beat
 systemctl enable redis-server
 
 echo "=== Configuring Nginx ==="
-cp /opt/invasives/inat-diff/webapp/deploy/nginx.conf /etc/nginx/sites-available/invasives
+# Only on first install: the live file carries certbot's HTTPS edits, and nginx keeps
+# serving its old config until a reload, so overwriting it silently breaks HTTPS later.
+if [ ! -e /etc/nginx/sites-available/invasives ]; then
+    cp /opt/invasives/inat-diff/webapp/deploy/nginx.conf /etc/nginx/sites-available/invasives
+else
+    echo "Keeping existing /etc/nginx/sites-available/invasives (diff it against deploy/nginx.conf by hand)"
+fi
 ln -sf /etc/nginx/sites-available/invasives /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
